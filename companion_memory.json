@@ -1,0 +1,105 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello",
+      "time": "2026-05-23T21:34:57.993883"
+    },
+    {
+      "role": "assistant",
+      "content": "(API错误 502)",
+      "time": "2026-05-23T21:35:00.707325"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "time": "2026-05-23T21:36:15.066338"
+    },
+    {
+      "role": "assistant",
+      "content": "(API错误 502)",
+      "time": "2026-05-23T21:36:17.210792"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "time": "2026-05-23T21:47:55.795419"
+    },
+    {
+      "role": "assistant",
+      "content": "(API错误 502)",
+      "time": "2026-05-23T21:47:58.493078"
+    },
+    {
+      "role": "user",
+      "content": "say hello in Chinese",
+      "time": "2026-05-23T21:50:03.542576"
+    },
+    {
+      "role": "assistant",
+      "content": "😅 出了点小问题: 'NoneType' object has no attribute 'strip'",
+      "time": "2026-05-23T21:50:12.964816"
+    },
+    {
+      "role": "user",
+      "content": "只用一句话打招呼",
+      "time": "2026-05-23T22:02:49.608873"
+    },
+    {
+      "role": "assistant",
+      "content": "😅 模型响应异常 (502)",
+      "time": "2026-05-23T22:02:51.654785"
+    },
+    {
+      "role": "user",
+      "content": "只用一句话打招呼",
+      "time": "2026-05-23T22:05:39.977881"
+    },
+    {
+      "role": "assistant",
+      "content": "👍 你好呢！",
+      "time": "2026-05-23T22:05:41.053465"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "time": "2026-05-23T22:06:39.662299"
+    },
+    {
+      "role": "assistant",
+      "content": "(test)",
+      "time": "2026-05-23T22:06:40.543981"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "time": "2026-05-23T22:07:48.178308"
+    },
+    {
+      "role": "assistant",
+      "content": "👋 Hello! How can I help you today?",
+      "time": "2026-05-23T22:07:49.167621"
+    },
+    {
+      "role": "user",
+      "content": "test",
+      "time": "2026-05-23T22:09:46.950074"
+    },
+    {
+      "role": "assistant",
+      "content": "(测试)",
+      "time": "2026-05-23T22:09:47.991146"
+    },
+    {
+      "role": "user",
+      "content": "hi",
+      "time": "2026-05-23T22:10:01.905229"
+    },
+    {
+      "role": "assistant",
+      "content": "Hello! Good morning 😎. How can I assist you today?",
+      "time": "2026-05-23T22:10:02.901439"
+    }
+  ],
+  "facts": []
+}

@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>中国象棋</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;height:100vh;font-family:'KaiTi','STKaiti',serif;flex-direction:column;gap:14px}
+h1{color:#fff;font-size:28px}
+#toolbar{display:flex;gap:10px}
+#toolbar button{padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;transition:all .2s}
+#toolbar button:hover{transform:translateY(-1px)}
+#restart{background:#4caf50;color:#fff}
+#undo{background:#607d8b;color:#fff}
+#flip{background:#ff9800;color:#fff}
+#status{color:#fff;font-size:18px;min-height:28px}
+canvas{cursor:pointer;border-radius:8px;box-shadow:0 0 30px rgba(0,0,0,0.5)}
+</style>
+</head>
+<body>
+
+<h1>中国象棋</h1>
+
+<div id="toolbar">
+  <button id="restart">🔄 新游戏</button>
+  <button id="undo">↩ 悔棋</button>
+  <button id="flip">🔃 翻转棋盘</button>
+</div>
+
+<div id="status">红方走棋</div>
+
+<canvas id="board"></canvas>
+
+<script>
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+
+const ROWS = 10, COLS = 9;
+const CELL = 58;
+const PAD = 40;
+canvas.width = PAD * 2 + (COLS - 1) * CELL;
+canvas.height = PAD * 2 + (ROWS - 1) * CELL;
+
+// ── Piece encoding ─────────────────────────────────────────
+// Positive = Red (bottom, human), Negative = Black (top, AI)
+// 1=帅/将, 2=仕/士, 3=相/象, 4=马, 5=车, 6=炮, 7=兵/卒
+const NAMES = {
+  1:'帅',2:'仕',3:'相',4:'马',5:'车',6:'炮',7:'兵',
+  '-1':'将','-2':'士','-3':'象','-4':'馬','-5':'車','-6':'砲','-7':'卒',
+};
+const VALUES = {1:10000,2:2,3:2,4:4,5:9,6:4.5,7:1};
+
+// ── State ──────────────────────────────────────────────────
+let board = Array.from({length:ROWS}, () => Array(COLS).fill(0));
+let currentSide = 1; // 1=Red(human), -1=Black(AI)
+let gameOver = false;
+let winner = 0;
+let history = [];
+let flipped = false; // flip board view
+let selected = null;
+
+function initBoard() {
+  // Black (top)
+  board[0] = [-5,-4,-3,-2,-1,-2,-3,-4,-5];
+  board[1] = [ 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  board[2] = [ 0,-6, 0, 0, 0, 0, 0,-6, 0];
+  board[3] = [-7, 0,-7, 0,-7, 0,-7, 0,-7];
+  board[4] = [ 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  board[5] = [ 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  // Red (bottom)
+  board[6] = [ 7, 0, 7, 0, 7, 0, 7, 0, 7];
+  board[7] = [ 0, 6, 0, 0, 0, 0, 0, 6, 0];
+  board[8] = [ 0, 0, 0, 0, 0, 0, 0, 0, 0];
+  board[9] = [ 5, 4, 3, 2, 1, 2, 3, 4, 5];
+}
+
+// ── Move generation ────────────────────────────────────────
+function inBounds(r, c) { return r >= 0 && r < ROWS && c >= 0 && c < COLS; }
+
+function sameSide(a, b) {
+  if (a === 0 || b === 0) return false;
+  return (a > 0 && b > 0) || (a < 0 && b < 0);
+}
+
+function canMove(fromR, fromC, toR, toC) {
+  if (!inBounds(toR, toC)) return false;
+  let piece = board[fromR][fromC];
+  if (piece === 0) return false;
+  if (sameSide(piece, board[toR][toC])) return false;
+  let type = Math.abs(piece);
+
+  let dr = toR - fromR, dc = toC - fromC;
+  let absDr = Math.abs(dr), absDc = Math.abs(dc);
+
+  switch(type) {
+    case 1: // King: within palace, one step orthogonal
+      if (absDr + absDc !== 1) return false;
+      if (!inPalace(toR, toC, piece > 0)) return false;
+      return true;
+
+    case 2: // Advisor: within palace, one step diagonal
+      if (absDr !== 1 || absDc !== 1) return false;
+      if (!inPalace(toR, toC, piece > 0)) return false;
+      return true;
+
+    case 3: // Elephant: diagonally 2 steps, no river crossing, no blocking
+      if (absDr !== 2 || absDc !== 2) return false;
+      if (piece > 0 && toR < 5) return false;  // Red can't cross river
+      if (piece < 0 && toR > 4) return false;  // Black can't cross river
+      if (board[fromR + dr/2][fromC + dc/2] !== 0) return false; // eye blocking
+      return true;
+
+    case 4: // Horse: L-shape with blocking foot
+      if (!((absDr === 2 && absDc === 1) || (absDr === 1 && absDc === 2))) return false;
+      let fr = fromR + (absDr === 2 ? dr/2 : 0);
+      let fc = fromC + (absDc === 2 ? dc/2 : 0);
+      if (board[fr][fc] !== 0) return false;
+      return true;
+
+    case 5: // Rook: straight line, no blocking
+      if (dr !== 0 && dc !== 0) return false;
+      return !piecesBetween(fromR, fromC, toR, toC);
+
+    case 6: // Cannon: straight line moving, capture needs exactly one piece in between
+      if (dr !== 0 && dc !== 0) return false;
+      let between = countBetween(fromR, fromC, toR, toC);
+      if (board[toR][toC] === 0) return between === 0; // Move: no blocking
+      return between === 1; // Capture: exactly one screen
+
+    case 7: // Pawn: forward only before river, forward+sideways after
+      let forward = piece > 0 ? -1 : 1;
+      if (dr === 0 && absDc === 1) {
+        // Sideways: only after crossing river
+        if (piece > 0 && fromR > 4) return false;
+        if (piece < 0 && fromR < 5) return false;
+        return true;
+      }
+      return dr === forward && dc === 0;
+  }
+  return false;
+}
+
+function inPalace(r, c, isRed) {
+  if (c < 3 || c > 5) return false;
+  return isRed ? (r >= 7 && r <= 9) : (r >= 0 && r <= 2);
+}
+
+function piecesBetween(r1, c1, r2, c2) {
+  return countBetween(r1, c1, r2, c2) > 0;
+}
+
+function countBetween(r1, c1, r2, c2) {
+  let count = 0;
+  if (r1 === r2) {
+    let minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
+    for (let c = minC + 1; c < maxC; c++) {
+      if (board[r1][c] !== 0) count++;
+    }
+  } else {
+    let minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
+    for (let r = minR + 1; r < maxR; r++) {
+      if (board[r][c1] !== 0) count++;
+    }
+  }
+  return count;
+}
+
+function getAllMoves(side) {
+  let moves = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let p = board[r][c];
+      if (p === 0 || (side > 0 ? p < 0 : p > 0)) continue;
+      // Semi-brute: check all reasonable targets
+      for (let tr = 0; tr < ROWS; tr++) {
+        for (let tc = 0; tc < COLS; tc++) {
+          if (canMove(r, c, tr, tc)) {
+            moves.push({fr:r, fc:c, tr, tc});
+          }
+        }
+      }
+    }
+  }
+  return moves;
+}
+
+// ── Flying general check ──────────────────────────────────
+function kingsFace() {
+  let redKing = null, blackKing = null;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] === 1) redKing = {r, c};
+      if (board[r][c] === -1) blackKing = {r, c};
+    }
+  }
+  if (!redKing || !blackKing) return false;
+  if (redKing.c !== blackKing.c) return false;
+  return !piecesBetween(redKing.r, redKing.c, blackKing.r, blackKing.c);
+}
+
+// ── Check detection ────────────────────────────────────────
+function isInCheck(side) {
+  // Find king
+  let kingVal = side > 0 ? 1 : -1;
+  let kr = -1, kc = -1;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] === kingVal) { kr = r; kc = c; break; }
+    }
+    if (kr >= 0) break;
+  }
+  if (kr < 0) return true; // King captured
+
+  // Check if any opponent piece can reach king
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (board[r][c] !== 0 && sameSide(board[r][c], kingVal) === false) {
+        if (canMove(r, c, kr, kc)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function makeMove(move) {
+  let {fr, fc, tr, tc} = move;
+  let captured = board[tr][tc];
+  board[tr][tc] = board[fr][fc];
+  board[fr][fc] = 0;
+  return captured;
+}
+
+function undoMove(move, captured) {
+  let {fr, fc, tr, tc} = move;
+  board[fr][fc] = board[tr][tc];
+  board[tr][tc] = captured;
+}
+
+function isLegal(move, side) {
+  let captured = makeMove(move);
+  let legal = !isInCheck(side) && !kingsFace();
+  undoMove(move, captured);
+  return legal;
+}
+
+function getLegalMoves(side) {
+  return getAllMoves(side).filter(m => isLegal(m, side));
+}
+
+// ── Board evaluation ──────────────────────────────────────
+function evaluate() {
+  // Material + position bonus
+  let score = 0;
+  let posBonus = [
+    // King position tables (simplified)
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0],
+  ];
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let p = board[r][c];
+      if (p === 0) continue;
+      let val = VALUES[Math.abs(p)] || 0;
+      // Positional bonus
+      if (Math.abs(p) === 5) {
+        // Rook: bonus for open files and attacking rows
+        val += 0.5;
+        if (p > 0 && r <= 4) val += 1.0;
+        if (p < 0 && r >= 5) val += 1.0;
+      }
+      if (Math.abs(p) === 4) {
+        // Horse: center bonus
+        if (c >= 2 && c <= 6) val += 0.3;
+      }
+      if (Math.abs(p) === 6) {
+        // Cannon: fewer pieces on board = more valuable
+        let pieceCount = 0;
+        for (let rr = 0; rr < ROWS; rr++)
+          for (let cc = 0; cc < COLS; cc++)
+            if (board[rr][cc] !== 0 && Math.abs(board[rr][cc]) !== 6) pieceCount++;
+        val += (32 - pieceCount) * 0.15;
+      }
+      if (Math.abs(p) === 7) {
+        // Pawn: more valuable after crossing river
+        if (p > 0 && r <= 4) val += 1.0;
+        if (p < 0 && r >= 5) val += 1.0;
+        if (p > 0 && r <= 2) val += 1.5;
+        if (p < 0 && r >= 7) val += 1.5;
+      }
+      score += (p > 0 ? val : -val);
+    }
+  }
+
+  // Mobility bonus
+  let mobility = getLegalMoves(currentSide === 1 ? -1 : -1).length;
+  score += (currentSide > 0 ? -mobility : mobility) * 0.05;
+
+  return score;
+}
+
+// ── Move ordering ─────────────────────────────────────────
+function sortMovesMvvLva(moves) {
+  return moves.sort((a, b) => {
+    let ca = Math.abs(board[a.tr][a.tc]) || 0;
+    let cb = Math.abs(board[b.tr][b.tc]) || 0;
+    return (VALUES[cb]||0) - (VALUES[ca]||0);
+  });
+}
+
+// ── Quiescence search ─────────────────────────────────────
+function quiesce(alpha, beta, side) {
+  let standPat = evaluate() * (side > 0 ? 1 : -1);
+  if (standPat >= beta) return beta;
+  if (standPat > alpha) alpha = standPat;
+
+  let captures = getAllMoves(side).filter(m => board[m.tr][m.tc] !== 0 && isLegal(m, side));
+  captures = sortMovesMvvLva(captures);
+
+  for (let m of captures) {
+    let captured = makeMove(m);
+    let score = -quiesce(-beta, -alpha, -side);
+    undoMove(m, captured);
+    if (score >= beta) return beta;
+    if (score > alpha) alpha = score;
+  }
+  return alpha;
+}
+
+// ── Minimax with alpha-beta ────────────────────────────────
+function minimax(depth, alpha, beta, isMax) {
+  let side = isMax ? -1 : 1; // AI = black (-1), Human = red (1)
+
+  // Check terminal
+  let moves = getLegalMoves(side);
+  if (moves.length === 0) {
+    return isMax ? -99999 + (4-depth) : 99999 - (4-depth);
+  }
+  if (depth === 0) {
+    return quiesce(alpha, beta, side);
+  }
+
+  moves = sortMovesMvvLva(moves);
+  if (moves.length > 25) moves = moves.slice(0, 25);
+
+  if (isMax) {
+    let maxScore = -Infinity;
+    for (let m of moves) {
+      let captured = makeMove(m);
+      let score = minimax(depth - 1, alpha, beta, false);
+      undoMove(m, captured);
+      if (score > maxScore) maxScore = score;
+      if (score > alpha) alpha = score;
+      if (alpha >= beta) break;
+    }
+    return maxScore;
+  } else {
+    let minScore = Infinity;
+    for (let m of moves) {
+      let captured = makeMove(m);
+      let score = minimax(depth - 1, alpha, beta, true);
+      undoMove(m, captured);
+      if (score < minScore) minScore = score;
+      if (score < beta) beta = score;
+      if (alpha >= beta) break;
+    }
+    return minScore;
+  }
+}
+
+// ── AI ─────────────────────────────────────────────────────
+function aiMove() {
+  let moves = getLegalMoves(-1);
+  if (moves.length === 0) { gameOver = true; winner = 1; return; }
+
+  moves = sortMovesMvvLva(moves);
+  if (moves.length > 20) moves = moves.slice(0, 20);
+
+  let bestScore = -Infinity;
+  let bestMoves = [];
+
+  for (let m of moves) {
+    let captured = makeMove(m);
+    let score = minimax(3, -Infinity, Infinity, false);
+    undoMove(m, captured);
+    if (score > bestScore) { bestScore = score; bestMoves = [m]; }
+    else if (score === bestScore) bestMoves.push(m);
+  }
+
+  return bestMoves[Math.floor(Math.random() * bestMoves.length)];
+}
+
+// ── Game logic ─────────────────────────────────────────────
+function doMove(move, animate = true) {
+  let captured = makeMove(move);
+  history.push({...move, captured});
+  currentSide = currentSide > 0 ? -1 : 1;
+  selected = null;
+  drawBoard();
+
+  // Check game over
+  let oppMoves = getLegalMoves(currentSide);
+  if (oppMoves.length === 0) {
+    gameOver = true;
+    winner = currentSide > 0 ? -1 : 1;
+  }
+
+  updateStatus();
+
+  if (!gameOver && currentSide === -1 && animate) {
+    setTimeout(() => {
+      let move = aiMove();
+      if (move) doMove(move, false);
+      drawBoard();
+      updateStatus();
+    }, 150);
+  }
+}
+
+function undo() {
+  if (gameOver || history.length < 2) return;
+  for (let i = 0; i < 2 && history.length > 0; i++) {
+    let last = history.pop();
+    board[last.fr][last.fc] = board[last.tr][last.tc];
+    board[last.tr][last.tc] = last.captured;
+  }
+  currentSide = 1;
+  selected = null;
+  drawBoard();
+  updateStatus();
+}
+
+// ── Drawing ────────────────────────────────────────────────
+function getDisplayRC(r, c) {
+  return flipped ? [ROWS - 1 - r, COLS - 1 - c] : [r, c];
+}
+
+function drawBoard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  ctx.fillStyle = '#f0d9a0';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Board lines
+  ctx.strokeStyle = '#5c3d1a';
+  ctx.lineWidth = 1.5;
+
+  // Horizontal
+  for (let r = 0; r < ROWS; r++) {
+    ctx.beginPath();
+    ctx.moveTo(PAD, PAD + r * CELL);
+    ctx.lineTo(PAD + (COLS - 1) * CELL, PAD + r * CELL);
+    ctx.stroke();
+  }
+
+  // Vertical (with river gap)
+  for (let c = 0; c < COLS; c++) {
+    if (c === 0 || c === COLS - 1) {
+      // Edge lines go all the way
+      ctx.beginPath();
+      ctx.moveTo(PAD + c * CELL, PAD);
+      ctx.lineTo(PAD + c * CELL, PAD + (ROWS - 1) * CELL);
+      ctx.stroke();
+    } else {
+      // Top half
+      ctx.beginPath();
+      ctx.moveTo(PAD + c * CELL, PAD);
+      ctx.lineTo(PAD + c * CELL, PAD + 4 * CELL);
+      ctx.stroke();
+      // Bottom half
+      ctx.beginPath();
+      ctx.moveTo(PAD + c * CELL, PAD + 5 * CELL);
+      ctx.lineTo(PAD + c * CELL, PAD + (ROWS - 1) * CELL);
+      ctx.stroke();
+    }
+  }
+
+  // Palace diagonals
+  ctx.strokeStyle = '#5c3d1a';
+  ctx.lineWidth = 1;
+  let palaces = [[0,3,2,5],[7,3,9,5]];
+  for (let [r1,c1,r2,c2] of palaces) {
+    ctx.beginPath();
+    ctx.moveTo(PAD + c1 * CELL, PAD + r1 * CELL);
+    ctx.lineTo(PAD + c2 * CELL, PAD + r2 * CELL);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(PAD + c1 * CELL, PAD + r2 * CELL);
+    ctx.lineTo(PAD + c2 * CELL, PAD + r1 * CELL);
+    ctx.stroke();
+  }
+
+  // River text
+  ctx.fillStyle = '#5c3d1a';
+  ctx.font = '20px "KaiTi","STKaiti",serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('楚  河', PAD + 2 * CELL, PAD + 4.5 * CELL);
+  ctx.fillText('汉  界', PAD + 6 * CELL, PAD + 4.5 * CELL);
+
+  // Pieces
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let p = board[r][c];
+      if (p === 0) continue;
+      let [dr, dc] = getDisplayRC(r, c);
+      drawPiece(PAD + dc * CELL, PAD + dr * CELL, p);
+    }
+  }
+
+  // Selection highlight
+  if (selected && !gameOver) {
+    let [sr, sc] = selected;
+    let [dsr, dsc] = getDisplayRC(sr, sc);
+    let sx = PAD + dsc * CELL, sy = PAD + dsr * CELL;
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(sx, sy, CELL/2 + 4, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Legal move indicators
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        if (canMove(sr, sc, r, c) && isLegal({fr:sr, fc:sc, tr:r, tc:c}, 1)) {
+          let [dr2, dc2] = getDisplayRC(r, c);
+          let tx = PAD + dc2 * CELL, ty = PAD + dr2 * CELL;
+          if (board[r][c] !== 0) {
+            // Capture indicator
+            ctx.strokeStyle = 'rgba(244,67,54,0.7)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(tx, ty, CELL/2 + 3, 0, Math.PI * 2);
+            ctx.stroke();
+          } else {
+            // Move indicator
+            ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            ctx.beginPath();
+            ctx.arc(tx, ty, 8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      }
+    }
+  }
+
+  // Last move highlight
+  if (history.length > 0) {
+    let last = history[history.length - 1];
+    for (let pos of [[last.fr, last.fc], [last.tr, last.tc]]) {
+      let [dr3, dc3] = getDisplayRC(pos[0], pos[1]);
+      ctx.strokeStyle = 'rgba(255,215,0,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(PAD + dc3 * CELL, PAD + dr3 * CELL, CELL/2 - 2, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawPiece(x, y, piece) {
+  // Shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.arc(x + 2, y + 2, CELL/2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body
+  let grad = ctx.createRadialGradient(x-2, y-3, 3, x, y, CELL/2-2);
+  grad.addColorStop(0, '#fafafa');
+  grad.addColorStop(1, '#d4c5a0');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, CELL/2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Border
+  ctx.strokeStyle = '#5c3d1a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, CELL/2 - 2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner circle
+  ctx.strokeStyle = '#5c3d1a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(x, y, CELL/2 - 6, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = piece > 0 ? '#c62828' : '#1a1a1a';
+  ctx.font = `bold ${CELL/2.2}px "KaiTi","STKaiti","SimSun",serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  let name = NAMES[piece] || '';
+  ctx.fillText(name, x, y);
+}
+
+function updateStatus() {
+  let s = document.getElementById('status');
+  if (gameOver) {
+    if (winner === 1) s.textContent = '🏆 红方胜！';
+    else if (winner === -1) s.textContent = '🤖 黑方胜！';
+    else s.textContent = '🤝 平局！';
+  } else {
+    s.textContent = currentSide > 0 ? '红方走棋' : '黑方思考中...';
+  }
+}
+
+// ── Click handling ────────────────────────────────────────
+canvas.addEventListener('click', (e) => {
+  if (gameOver || currentSide !== 1) return;
+  let rect = canvas.getBoundingClientRect();
+  let mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let dc = Math.round((mx - PAD) / CELL);
+  let dr = Math.round((my - PAD) / CELL);
+  if (dc < 0 || dc >= COLS || dr < 0 || dr >= ROWS) return;
+
+  // Unflip coordinates
+  let [r, c] = flipped ? [ROWS - 1 - dr, COLS - 1 - dc] : [dr, dc];
+
+  if (selected) {
+    let [sr, sc] = selected;
+    if (r === sr && c === sc) { selected = null; drawBoard(); return; }
+    if (board[r][c] > 0) { selected = [r, c]; drawBoard(); return; }
+    if (canMove(sr, sc, r, c) && isLegal({fr:sr, fc:sc, tr:r, tc:c}, 1)) {
+      doMove({fr:sr, fc:sc, tr:r, tc:c});
+      return;
+    }
+    selected = null;
+    drawBoard();
+  } else if (board[r][c] > 0) {
+    selected = [r, c];
+    drawBoard();
+  }
+});
+
+// ── Buttons ────────────────────────────────────────────────
+document.getElementById('restart').addEventListener('click', resetGame);
+document.getElementById('undo').addEventListener('click', undo);
+document.getElementById('flip').addEventListener('click', () => {
+  flipped = !flipped;
+  drawBoard();
+});
+
+function resetGame() {
+  initBoard();
+  currentSide = 1;
+  gameOver = false;
+  winner = 0;
+  history = [];
+  selected = null;
+  drawBoard();
+  updateStatus();
+}
+
+// ── Hover ─────────────────────────────────────────────────
+canvas.addEventListener('mousemove', (e) => {
+  drawBoard();
+  if (gameOver || currentSide !== 1) return;
+  let rect = canvas.getBoundingClientRect();
+  let mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let dc = Math.round((mx - PAD) / CELL);
+  let dr = Math.round((my - PAD) / CELL);
+  if (dc < 0 || dc >= COLS || dr < 0 || dr >= ROWS) return;
+  let [r, c] = flipped ? [ROWS - 1 - dr, COLS - 1 - dc] : [dr, dc];
+  let cx = PAD + dc * CELL, cy = PAD + dr * CELL;
+  if (Math.abs(mx - cx) > CELL/2 || Math.abs(my - cy) > CELL/2) return;
+
+  if (board[r][c] > 0 || (selected && canMove(selected[0], selected[1], r, c))) {
+    canvas.style.cursor = 'pointer';
+    ctx.fillStyle = 'rgba(255,215,0,0.3)';
+    ctx.beginPath();
+    ctx.arc(cx, cy, CELL/2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    canvas.style.cursor = 'default';
+  }
+});
+
+// ── Start ─────────────────────────────────────────────────
+initBoard();
+drawBoard();
+updateStatus();
+</script>
+</body>
+</html>

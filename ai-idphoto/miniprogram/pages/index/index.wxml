@@ -1,0 +1,62 @@
+<view class="page">
+  <view class="header" style="padding-top:{{statusBarHeight + 20}}px">
+    <text class="title">AI 证件照</text>
+    <text class="subtitle">一键换底色 · 多尺寸适配 · 高清出图</text>
+    <view class="header-link" bindtap="onGoOrders">
+      <text>下载记录 ›</text>
+    </view>
+  </view>
+
+  <!-- Upload area -->
+  <view class="upload-section">
+    <view class="upload-box" bindtap="onChoosePhoto">
+      <view class="upload-icon">+</view>
+      <text class="upload-text">选择或拍摄照片</text>
+      <text class="upload-hint">支持 JPG/PNG，建议正面免冠照</text>
+    </view>
+  </view>
+
+  <!-- Size picker -->
+  <view class="section">
+    <text class="section-title">照片尺寸</text>
+    <scroll-view class="spec-scroll" scroll-x wx:key="specs">
+      <view
+        class="spec-item {{selectedSpec === item.id ? 'active' : ''}}"
+        wx:for="{{specs}}"
+        wx:key="id"
+        data-id="{{item.id}}"
+        bindtap="onSpecChange"
+      >
+        <text class="spec-name">{{item.name}}</text>
+        <text class="spec-size">{{item.size}}</text>
+        <text class="spec-use">{{item.use}}</text>
+        <view class="spec-check" wx:if="{{selectedSpec === item.id}}">✓</view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <!-- Color picker -->
+  <view class="section">
+    <text class="section-title">背景颜色</text>
+    <view class="color-list">
+      <view
+        class="color-item {{selectedColor === item.value ? 'active' : ''}}"
+        wx:for="{{colors}}"
+        wx:key="value"
+        data-color="{{item.value}}"
+        bindtap="onColorChange"
+      >
+        <view class="color-swatch" style="background:{{item.value}}"></view>
+        <text class="color-name">{{item.name}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- Start button -->
+  <view class="btn-area">
+    <button class="btn-primary make-btn" bindtap="onChoosePhoto">
+      开始制作
+    </button>
+    <text class="price-hint">免费使用 · 观看广告下载高清图</text>
+  </view>
+</view>

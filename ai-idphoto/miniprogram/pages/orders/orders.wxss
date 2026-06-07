@@ -1,0 +1,106 @@
+.page {
+  min-height: 100vh;
+  background: #f5f5f5;
+}
+
+.header {
+  padding: 30rpx 40rpx;
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #333;
+  background: #fff;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 200rpx;
+}
+
+.empty-icon {
+  font-size: 100rpx;
+  margin-bottom: 24rpx;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.empty-hint {
+  font-size: 26rpx;
+  color: #999;
+  margin-top: 8rpx;
+}
+
+.order-list {
+  padding: 20rpx 30rpx;
+}
+
+.order-card {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+}
+
+.order-thumb {
+  width: 100rpx;
+  height: 120rpx;
+  border-radius: 8rpx;
+  flex-shrink: 0;
+}
+
+.order-info {
+  flex: 1;
+  margin-left: 20rpx;
+}
+
+.order-spec {
+  display: block;
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.order-time {
+  display: block;
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 6rpx;
+}
+
+.btn-download {
+  font-size: 24rpx;
+  padding: 12rpx 28rpx;
+  background: linear-gradient(135deg, #4a6cf7, #6c8cff);
+  color: #fff;
+  border-radius: 50rpx;
+  border: none;
+}
+
+.btn-download:active {
+  opacity: 0.85;
+}
+
+.btn-delete {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 50%;
+  background: #f5f5f5;
+  color: #999;
+  font-size: 28rpx;
+  line-height: 48rpx;
+  padding: 0;
+  margin-left: 12rpx;
+  border: none;
+}
+
+.btn-delete:active {
+  background: #ffebee;
+  color: #f44336;
+}

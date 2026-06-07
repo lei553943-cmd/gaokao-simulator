@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>三局猜拳</title>
+<style>
+:root{--bg:#0a0a14;--surf:#141428;--b:rgba(255,255,255,0.06);--t:#f1f1f3;--d:#6b6b80;--rock:#ff5e5b;--sci:#4d9de0;--pap:#ffc145;--win:#2ecc71;--lose:#e74c3c;--p1:#a855f7;--p2:#f59e0b}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:16px}
+.c{width:min(400px,94vw);text-align:center}
+h1{font-size:26px;font-weight:900;margin-bottom:4px}
+.sub{color:var(--d);font-size:13px;margin-bottom:20px}
+
+/* mode toggle */
+.mode-switch{display:inline-flex;background:var(--surf);border-radius:10px;padding:3px;margin-bottom:24px;border:1px solid var(--b)}
+.mode-btn{padding:8px 18px;border-radius:8px;border:none;background:transparent;color:var(--d);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s}
+.mode-btn.on{background:rgba(168,85,247,.2);color:#c084fc}
+
+/* 3 columns */
+.cols{display:flex;gap:10px;justify-content:center;margin-bottom:24px}
+.col{flex:1;max-width:120px;background:var(--surf);border-radius:16px;padding:16px 6px 12px;border:1px solid var(--b);transition:.3s}
+.col.p2{border-color:rgba(245,158,11,.25)}
+.col-label{font-size:11px;color:var(--d);margin-bottom:10px;font-weight:600}
+.col-icon{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,0.03);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:28px;transition:.2s}
+.col-icon.set.rock{color:var(--rock);background:rgba(255,94,91,.12)}
+.col-icon.set.scissors{color:var(--sci);background:rgba(77,157,224,.12)}
+.col-icon.set.paper{color:var(--pap);background:rgba(255,193,69,.12)}
+.col-btns{display:flex;gap:4px;justify-content:center}
+.cb{width:30px;height:30px;border-radius:50%;border:2px solid var(--b);background:transparent;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.cb:hover{border-color:rgba(255,255,255,.3);transform:scale(1.1)}
+.cb.sel.rock{border-color:var(--rock);background:rgba(255,94,91,.15);box-shadow:0 0 10px rgba(255,94,91,.2)}
+.cb.sel.scissors{border-color:var(--sci);background:rgba(77,157,224,.15);box-shadow:0 0 10px rgba(77,157,224,.2)}
+.cb.sel.paper{border-color:var(--pap);background:rgba(255,193,69,.15);box-shadow:0 0 10px rgba(255,193,69,.2)}
+
+.fb{display:block;width:100%;padding:16px;border-radius:14px;border:none;font-size:17px;font-weight:800;font-family:inherit;cursor:pointer;transition:.3s;letter-spacing:1px;background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff}
+.fb:disabled{opacity:.2;cursor:not-allowed;filter:grayscale(.4)}
+.fb:not(:disabled):active{transform:scale(.97)}
+.fb.p2{background:linear-gradient(135deg,#f59e0b,#d97706)}
+
+/* pass overlay */
+.overlay{position:fixed;inset:0;background:rgba(10,10,20,.95);z-index:50;display:flex;align-items:center;justify-content:center;animation:fadeIn .3s}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.overlay-card{text-align:center;padding:32px}
+.overlay-card .big{font-size:72px;margin-bottom:12px}
+.overlay-card h2{font-size:24px;font-weight:900;margin-bottom:6px}
+.overlay-card p{color:var(--d);font-size:14px;line-height:1.7;margin-bottom:20px}
+.overlay-card button{padding:14px 40px;border-radius:30px;border:none;font-size:16px;font-weight:800;color:#fff;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,#f59e0b,#d97706)}
+.overlay-card button:active{transform:scale(.96)}
+
+/* player badge */
+.player-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:16px}
+.player-badge.p1{background:rgba(168,85,247,.15);color:#c084fc;border:1px solid rgba(168,85,247,.25)}
+.player-badge.p2{background:rgba(245,158,11,.15);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
+
+/* battle */
+.arena{display:none;margin-top:20px}
+.arena .hdr{color:var(--d);font-size:13px;margin-bottom:16px}
+.match{display:flex;align-items:center;background:var(--surf);border-radius:14px;padding:12px 16px;margin-bottom:8px;border:1px solid var(--b);animation:in .4s ease both}
+.match:nth-child(1){animation-delay:0s}
+.match:nth-child(2){animation-delay:.2s}
+.match:nth-child(3){animation-delay:.4s}
+@keyframes in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}
+.match .rn{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.04);font-size:11px;font-weight:700;color:var(--d);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:10px}
+.match .gd{font-size:24px;width:40px;text-align:center}
+.match .gd.p1{color:var(--p1)} .match .gd.p2{color:var(--p2)}
+.match .vs{color:var(--d);font-size:11px;font-weight:700;margin:0 8px}
+.match .opp{font-size:24px;width:40px;text-align:center;transition:.3s}
+.match .opp.p1{color:var(--p1)} .match .opp.p2{color:var(--p2)}
+.match .opp.hidden::after{content:'?';color:var(--d);font-weight:700}
+.match .tag{min-width:32px;text-align:center;font-size:14px;font-weight:800;margin-left:auto}
+.tag.w{color:var(--win)}.tag.l{color:var(--lose)}.tag.d{color:var(--d)}
+
+.result{display:none;text-align:center;margin-top:24px;animation:up .5s ease}
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.result .re{font-size:52px;margin-bottom:6px}
+.result .rt{font-size:22px;font-weight:900;margin-bottom:4px}
+.result .rs{color:var(--d);font-size:14px}
+.result .dots{margin:14px 0;display:flex;gap:10px;justify-content:center}
+.result .dots .dot{width:12px;height:12px;border-radius:50%}
+.dot.w{background:var(--win);box-shadow:0 0 10px rgba(46,204,113,.4)}
+.dot.l{background:var(--lose);box-shadow:0 0 10px rgba(231,76,60,.4)}
+.dot.d{background:var(--d)}
+.retry{padding:10px 32px;border-radius:24px;border:2px solid var(--b);background:transparent;color:var(--t);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;margin-top:8px}
+.retry:hover{border-color:rgba(255,255,255,.25)}
+
+@keyframes pop{0%{transform:scale(0);opacity:1}100%{transform:scale(1.6);opacity:0}}
+.particle{position:fixed;pointer-events:none;z-index:999;font-size:24px;animation:pop .5s ease forwards}
+
+.help-text{font-size:12px;color:var(--d);margin-top:8px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="c">
+  <h1>三局猜拳</h1>
+  <p class="sub" id="subtitle">一次性选完三个手势，胜负立判</p>
+
+  <div class="mode-switch">
+    <button class="mode-btn on" id="modeAI" onclick="setMode('ai')">🤖 对电脑</button>
+    <button class="mode-btn" id="modeFriend" onclick="setMode('friend')">👥 对好友</button>
+  </div>
+
+  <div id="pickPhase">
+    <div class="player-badge p1" id="playerBadge">👤 你</div>
+    <div class="cols" id="cols"></div>
+    <button class="fb" id="go" disabled>三局选定 · 开战</button>
+    <p class="help-text" id="help"></p>
+  </div>
+
+  <div class="arena" id="arena">
+    <div class="hdr">战况揭晓</div>
+    <div id="matches"></div>
+    <div class="result" id="result">
+      <div class="re" id="re"></div>
+      <div class="rt" id="rt"></div>
+      <div class="rs" id="rs"></div>
+      <div class="dots" id="dots"></div>
+      <button class="retry" onclick="again()">再来一局</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay" style="display:none">
+    <div class="overlay-card">
+      <div class="big">📱</div>
+      <h2>请把手机交给对手</h2>
+      <p>你的手势已经隐藏<br>不要让对手看到屏幕</p>
+      <button onclick="showP2()">🤚 我是对手</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ICONS = ['rock','scissors','paper'];
+const G = {rock:'✊', scissors:'✌️', paper:'✋'};
+const beats = {rock:'scissors', scissors:'paper', paper:'rock'};
+
+let mode = 'ai';  // 'ai' | 'friend'
+let picks = [null,null,null];      // P1 picks
+let picks2 = [null,null,null];     // P2 picks (friend mode)
+let phase = 'p1';  // 'p1' | 'p2'
+
+// Build columns
+const cols = document.getElementById('cols');
+for (let i=0;i<3;i++) {
+  const col = document.createElement('div'); col.className = 'col'; col.id = 'col'+i;
+  col.innerHTML = `<div class="col-label">第${i+1}局</div><div class="col-icon" id="ci${i}">🎯</div><div class="col-btns" id="cb${i}"></div>`;
+  cols.appendChild(col);
+  const btns = document.getElementById('cb'+i);
+  for (const k of ICONS) {
+    const b = document.createElement('button'); b.className = 'cb'; b.textContent = G[k];
+    b.onclick = () => { pick(i,k); };
+    btns.appendChild(b);
+  }
+}
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('modeAI').classList.toggle('on', m==='ai');
+  document.getElementById('modeFriend').classList.toggle('on', m==='friend');
+  document.getElementById('help').textContent = m==='friend' ? '两人在同一台设备上轮流选择' : '';
+  again();
+}
+
+function pick(idx, choice) {
+  if (phase === 'p1') {
+    picks[idx] = choice;
+  } else {
+    picks2[idx] = choice;
+  }
+  const ci = document.getElementById('ci'+idx);
+  ci.textContent = G[choice]; ci.className = 'col-icon set '+choice;
+  const btns = document.getElementById('cb'+idx).children;
+  for (const b of btns) { b.classList.remove('sel'); if (b.textContent===G[choice]) b.classList.add('sel',choice); }
+  updateGoBtn();
+}
+
+function updateGoBtn() {
+  const currentPicks = phase==='p1' ? picks : picks2;
+  const allSet = !currentPicks.some(p=>p===null);
+  const btn = document.getElementById('go');
+  btn.disabled = !allSet;
+  if (mode==='friend' && phase==='p1' && allSet) {
+    btn.textContent = '✅ 选定 · 交给对手';
+    btn.className = 'fb';
+  } else if (mode==='friend' && phase==='p2' && allSet) {
+    btn.textContent = '⚔️ 揭晓胜负';
+    btn.className = 'fb p2';
+  } else {
+    btn.textContent = '三局选定 · 开战';
+    btn.className = 'fb';
+  }
+}
+
+function go() {
+  if (mode === 'ai') {
+    fightAI();
+  } else {
+    if (phase === 'p1') {
+      // Hide and pass to P2
+      document.getElementById('overlay').style.display = 'flex';
+    } else {
+      // P2 done, reveal
+      document.getElementById('overlay').style.display = 'none';
+      fightFriend();
+    }
+  }
+}
+
+function showP2() {
+  document.getElementById('overlay').style.display = 'none';
+  phase = 'p2';
+  picks2 = [null,null,null];
+  // Reset UI for P2
+  for (let i=0;i<3;i++) {
+    document.getElementById('ci'+i).textContent = '🎯';
+    document.getElementById('ci'+i).className = 'col-icon';
+    const btns = document.getElementById('cb'+i).children;
+    for (const b of btns) b.classList.remove('sel','rock','scissors','paper');
+    document.getElementById('col'+i).classList.add('p2');
+  }
+  document.getElementById('playerBadge').textContent = '🤝 对手';
+  document.getElementById('playerBadge').className = 'player-badge p2';
+  document.getElementById('subtitle').textContent = '对手选择三个手势，然后揭晓胜负';
+  updateGoBtn();
+}
+
+function ai() {
+  return [ICONS[Math.floor(Math.random()*3)], ICONS[Math.floor(Math.random()*3)], ICONS[Math.floor(Math.random()*3)]];
+}
+
+function showBattle(p1, p2, isFriend) {
+  document.getElementById('pickPhase').style.display = 'none';
+  document.getElementById('arena').style.display = 'block';
+  const mc = document.getElementById('matches'); mc.innerHTML = '';
+  let w1=0, w2=0; const rs=[];
+
+  for (let i=0;i<3;i++) {
+    const r = beats[p1[i]]===p2[i] ? 'w' : p1[i]===p2[i] ? 'd' : 'l';
+    rs.push(r); if (r==='w') w1++; else if (r==='l') w2++;
+
+    const div = document.createElement('div'); div.className = 'match';
+    div.innerHTML = `<div class="rn">${i+1}</div><div class="gd p1">${G[p1[i]]}</div><span class="vs">VS</span><div class="opp p2 hidden" id="op${i}"></div><div class="tag" id="tg${i}"></div>`;
+    mc.appendChild(div);
+
+    const row = div;
+    setTimeout(() => {
+      const op = document.getElementById('op'+i);
+      op.className = 'opp p2'; op.textContent = G[p2[i]];
+      const tg = document.getElementById('tg'+i);
+      if (r==='w') { tg.textContent = isFriend?'P1胜':'胜'; tg.className='tag w'; burst(row); }
+      else if (r==='l') { tg.textContent = isFriend?'P2胜':'负'; tg.className='tag l'; }
+      else { tg.textContent='平'; tg.className='tag d'; }
+    }, 500 + i*450);
+  }
+
+  setTimeout(() => {
+    const rp = document.getElementById('result'); rp.style.display = 'block';
+    if (isFriend) {
+      document.getElementById('re').textContent = w1>w2?'👑':w2>w1?'👑':'🤝';
+      document.getElementById('rt').textContent = w1>w2?'玩家1获胜！':w2>w1?'玩家2获胜！':'平局';
+    } else {
+      document.getElementById('re').textContent = w1>w2?'🏆':w2>w1?'💀':'🤝';
+      document.getElementById('rt').textContent = w1>w2?'你赢了！':w2>w1?'你输了':'平局';
+    }
+    document.getElementById('rs').textContent = `P1 ${w1}胜 · ${3-w1-w2}平 · ${w2}胜 P2`;
+    document.getElementById('dots').innerHTML = rs.map(r=>`<div class="dot ${r}"></div>`).join('');
+  }, 500 + 3*450 + 200);
+}
+
+function fightAI() {
+  showBattle(picks, ai(), false);
+}
+
+function fightFriend() {
+  showBattle(picks, picks2, true);
+}
+
+function burst(row) {
+  const r = row.getBoundingClientRect();
+  for (let i=0;i<6;i++) {
+    const p = document.createElement('div'); p.className = 'particle';
+    p.textContent = ['✨','⚡','💥'][i%3];
+    p.style.left = (r.left+r.width/2+(Math.random()-.5)*100)+'px';
+    p.style.top = (r.top+(Math.random()-.5)*30)+'px';
+    p.style.animationDelay = Math.random()*.15+'s';
+    document.body.appendChild(p); setTimeout(()=>p.remove(),600);
+  }
+}
+
+function again() {
+  picks = [null,null,null]; picks2 = [null,null,null]; phase = 'p1';
+  for (let i=0;i<3;i++) {
+    document.getElementById('ci'+i).textContent = '🎯';
+    document.getElementById('ci'+i).className = 'col-icon';
+    document.getElementById('col'+i).classList.remove('p2');
+    for (const b of document.getElementById('cb'+i).children) b.classList.remove('sel','rock','scissors','paper');
+  }
+  document.getElementById('playerBadge').textContent = '👤 你';
+  document.getElementById('playerBadge').className = 'player-badge p1';
+  document.getElementById('subtitle').textContent = '一次性选完三个手势，胜负立判';
+  document.getElementById('pickPhase').style.display = 'block';
+  document.getElementById('arena').style.display = 'none';
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('overlay').style.display = 'none';
+  updateGoBtn();
+}
+
+document.getElementById('go').onclick = go;
+</script>
+</body>
+</html>

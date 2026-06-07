@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "solidworks": {
+      "command": "F:/ai-tools/python311/python.exe",
+      "args": ["F:/ai-tools/SolidworksMCP-Python/server.py"]
+    }
+  }
+}

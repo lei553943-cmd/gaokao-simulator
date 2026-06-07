@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>三局猜拳 · 在线对战</title>
+<style>
+:root{--bg:#0a0a14;--surf:#141428;--b:rgba(255,255,255,0.06);--t:#f1f1f3;--d:#6b6b80;--rock:#ff5e5b;--sci:#4d9de0;--pap:#ffc145;--win:#2ecc71;--lose:#e74c3c;--p1:#a855f7;--p2:#f59e0b}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--t);min-height:100vh;display:flex;justify-content:center;align-items:center;padding:16px}
+.c{width:min(400px,94vw);text-align:center}
+h1{font-size:24px;font-weight:900;margin-bottom:20px}
+
+/* lobby */
+.lobby-card{background:var(--surf);border-radius:16px;padding:24px;border:1px solid var(--b)}
+.lobby-card h2{font-size:18px;margin-bottom:6px}
+.lobby-card .desc{color:var(--d);font-size:13px;margin-bottom:20px;line-height:1.6}
+.inp{width:100%;padding:14px;border-radius:12px;background:rgba(255,255,255,0.04);border:1px solid var(--b);color:var(--t);font-size:18px;text-align:center;letter-spacing:4px;font-weight:700;font-family:inherit;outline:none;margin-bottom:12px;text-transform:uppercase}
+.inp:focus{border-color:var(--p1)}
+.btn{display:block;width:100%;padding:14px;border-radius:12px;border:none;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;transition:.2s;margin-bottom:8px}
+.btn:active{transform:scale(.97)}
+.btn-purple{background:linear-gradient(135deg,#a855f7,#7c3aed);color:#fff}
+.btn-outline{background:transparent;border:2px solid var(--b);color:var(--t)}
+.btn-outline:hover{border-color:rgba(255,255,255,.2)}
+.btn-gold{background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--d);font-size:12px}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--b)}
+
+/* room */
+.room-header{display:flex;align-items:center;justify-content:space-between;background:var(--surf);border-radius:14px;padding:14px 18px;margin-bottom:20px;border:1px solid var(--b)}
+.room-code{font-size:22px;font-weight:900;letter-spacing:4px;color:var(--p1)}
+.room-status{font-size:12px;color:var(--d)}
+.room-status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px;background:var(--d);animation:pulse 1.5s infinite}
+.room-status .dot.on{background:var(--win)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* game area */
+.cols{display:flex;gap:10px;justify-content:center;margin-bottom:24px}
+.col{flex:1;max-width:120px;background:var(--surf);border-radius:16px;padding:16px 6px 12px;border:1px solid var(--b)}
+.col-label{font-size:11px;color:var(--d);margin-bottom:10px;font-weight:600}
+.col-icon{width:56px;height:56px;border-radius:14px;background:rgba(255,255,255,0.03);margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-size:28px;transition:.2s}
+.col-icon.set.rock{color:var(--rock);background:rgba(255,94,91,.12)}
+.col-icon.set.scissors{color:var(--sci);background:rgba(77,157,224,.12)}
+.col-icon.set.paper{color:var(--pap);background:rgba(255,193,69,.12)}
+.col-btns{display:flex;gap:4px;justify-content:center}
+.cb{width:30px;height:30px;border-radius:50%;border:2px solid var(--b);background:transparent;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.15s}
+.cb:hover{border-color:rgba(255,255,255,.3);transform:scale(1.1)}
+.cb.sel.rock{border-color:var(--rock);background:rgba(255,94,91,.15);box-shadow:0 0 10px rgba(255,94,91,.2)}
+.cb.sel.scissors{border-color:var(--sci);background:rgba(77,157,224,.15);box-shadow:0 0 10px rgba(77,157,224,.2)}
+.cb.sel.paper{border-color:var(--pap);background:rgba(255,193,69,.15);box-shadow:0 0 10px rgba(255,193,69,.2)}
+
+.fb{display:block;width:100%;padding:16px;border-radius:14px;border:none;font-size:17px;font-weight:800;font-family:inherit;cursor:pointer;transition:.3s;letter-spacing:1px;color:#fff}
+.fb:disabled{opacity:.2;cursor:not-allowed;filter:grayscale(.4)}
+.fb:not(:disabled):active{transform:scale(.97)}
+
+/* waiting */
+.waiting{text-align:center;padding:40px 20px}
+.waiting .spinner{font-size:48px;animation:spin 2s linear infinite;display:block;margin-bottom:16px}
+@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+.waiting p{color:var(--d);font-size:14px}
+
+/* battle */
+.arena .hdr{color:var(--d);font-size:13px;margin-bottom:16px}
+.match{display:flex;align-items:center;background:var(--surf);border-radius:14px;padding:12px 16px;margin-bottom:8px;border:1px solid var(--b);animation:in .4s ease both}
+.match:nth-child(1){animation-delay:0s}
+.match:nth-child(2){animation-delay:.2s}
+.match:nth-child(3){animation-delay:.4s}
+@keyframes in{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:translateX(0)}}
+.match .rn{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.04);font-size:11px;font-weight:700;color:var(--d);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-right:10px}
+.match .gd{font-size:24px;width:40px;text-align:center}
+.match .vs{color:var(--d);font-size:11px;font-weight:700;margin:0 8px}
+.match .opp{font-size:24px;width:40px;text-align:center;transition:.3s}
+.match .opp.hidden::after{content:'?';color:var(--d);font-weight:700}
+.match .tag{min-width:32px;text-align:center;font-size:14px;font-weight:800;margin-left:auto}
+.tag.w{color:var(--win)}.tag.l{color:var(--lose)}.tag.d{color:var(--d)}
+
+.result{text-align:center;margin-top:24px;animation:up .5s ease}
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.result .re{font-size:52px;margin-bottom:6px}
+.result .rt{font-size:22px;font-weight:900;margin-bottom:4px}
+.result .rs{color:var(--d);font-size:14px}
+.result .dots{margin:14px 0;display:flex;gap:10px;justify-content:center}
+.result .dots .dot{width:12px;height:12px;border-radius:50%}
+.dot.w{background:var(--win);box-shadow:0 0 10px rgba(46,204,113,.4)}
+.dot.l{background:var(--lose);box-shadow:0 0 10px rgba(231,76,60,.4)}
+.dot.d{background:var(--d)}
+.retry{padding:10px 32px;border-radius:24px;border:2px solid var(--b);background:transparent;color:var(--t);font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:.2s;margin-top:8px;margin-right:6px}
+.retry:hover{border-color:rgba(255,255,255,.25)}
+
+@keyframes pop{0%{transform:scale(0);opacity:1}100%{transform:scale(1.6);opacity:0}}
+.particle{position:fixed;pointer-events:none;z-index:999;font-size:24px;animation:pop .5s ease forwards}
+</style>
+</head>
+<body>
+<div class="c">
+  <h1>三局猜拳 · 在线对战</h1>
+  <div id="app"></div>
+</div>
+
+<script>
+const ICONS = ['rock','scissors','paper'];
+const G = {rock:'✊', scissors:'✌️', paper:'✋'};
+
+// ═══ WS URL — 从 URL 参数读取，或手动填写 ═══
+const params = new URLSearchParams(location.search);
+const WS_URL = params.get('ws') || 'wss://rotten-candies-invite.loca.lt';
+let ws = null;
+let roomId = null;
+let playerId = null;
+let myPicks = [null,null,null];
+
+// ═══ Render Functions ═══
+
+function renderLobby() {
+  document.getElementById('app').innerHTML = `
+    <div class="lobby-card">
+      <h2>创建或加入房间</h2>
+      <p class="desc">生成房间码发给朋友<br>或者输入朋友的房间码加入</p>
+      <button class="btn btn-purple" onclick="createRoom()">🎲 创建房间</button>
+      <div class="divider">或</div>
+      <input class="inp" id="roomInput" placeholder="输入房间码" maxlength="4" autocomplete="off">
+      <button class="btn btn-gold" onclick="joinRoom()">🚪 加入房间</button>
+    </div>
+  `;
+}
+
+function renderRoom() {
+  document.getElementById('app').innerHTML = `
+    <div class="room-header">
+      <span>房间</span>
+      <span class="room-code">${roomId}</span>
+      <span class="room-status"><span class="dot" id="statusDot"></span><span id="statusText">等待对手加入...</span></span>
+    </div>
+    <div id="gameArea"></div>
+  `;
+  renderPickPhase();
+}
+
+function renderPickPhase() {
+  document.getElementById('gameArea').innerHTML = `
+    <div class="cols" id="cols"></div>
+    <button class="fb" id="go" disabled style="background:linear-gradient(135deg,#a855f7,#7c3aed)">选定手势 · 等待对手</button>
+  `;
+  const cols = document.getElementById('cols');
+  for (let i=0;i<3;i++) {
+    const col = document.createElement('div'); col.className = 'col';
+    col.innerHTML = `<div class="col-label">第${i+1}局</div><div class="col-icon" id="ci${i}">🎯</div><div class="col-btns" id="cb${i}"></div>`;
+    cols.appendChild(col);
+    const btns = document.getElementById('cb'+i);
+    for (const k of ICONS) {
+      const b = document.createElement('button'); b.className = 'cb'; b.textContent = G[k];
+      b.onclick = () => { myPicks[i] = k;
+        document.getElementById('ci'+i).textContent = G[k];
+        document.getElementById('ci'+i).className = 'col-icon set '+k;
+        for (const c of btns.children) { c.classList.remove('sel'); if (c.textContent===G[k]) c.classList.add('sel',k); }
+        document.getElementById('go').disabled = myPicks.some(p=>p===null);
+      };
+      btns.appendChild(b);
+    }
+  }
+  document.getElementById('go').onclick = submitPicks;
+}
+
+function renderWaiting() {
+  document.getElementById('gameArea').innerHTML = `
+    <div class="waiting">
+      <span class="spinner">⏳</span>
+      <p>已选定，等待对手...</p>
+      <p style="font-size:12px;margin-top:4px;color:var(--d)">双方选完后自动揭晓</p>
+    </div>
+  `;
+  document.getElementById('statusText').textContent = '等待对手选择...';
+}
+
+function renderBattle(my, opp, results, myWins, oppWins) {
+  document.getElementById('gameArea').innerHTML = `
+    <div class="arena">
+      <div class="hdr">战况揭晓</div>
+      <div id="matches"></div>
+      <div class="result" id="result">
+        <div class="re" id="re"></div>
+        <div class="rt" id="rt"></div>
+        <div class="rs" id="rs"></div>
+        <div class="dots" id="dots"></div>
+        <button class="retry" onclick="renderPickPhase()">🔄 再来一局</button>
+      </div>
+    </div>
+  `;
+
+  const mc = document.getElementById('matches');
+  for (let i=0;i<3;i++) {
+    const r = results[i];
+    const div = document.createElement('div'); div.className = 'match';
+    div.innerHTML = `<div class="rn">${i+1}</div><div class="gd">${G[my[i]]}</div><span class="vs">VS</span><div class="opp hidden" id="op${i}"></div><div class="tag" id="tg${i}"></div>`;
+    mc.appendChild(div);
+    const row = div;
+    setTimeout(() => {
+      document.getElementById('op'+i).className = 'opp'; document.getElementById('op'+i).textContent = G[opp[i]];
+      const tg = document.getElementById('tg'+i);
+      if (r==='win') { tg.textContent='胜'; tg.className='tag w'; burst(row); }
+      else if (r==='lose') { tg.textContent='负'; tg.className='tag l'; }
+      else { tg.textContent='平'; tg.className='tag d'; }
+    }, 500 + i*450);
+  }
+
+  setTimeout(() => {
+    const rp = document.getElementById('result'); rp.style.display = 'block';
+    document.getElementById('re').textContent = myWins>oppWins?'🏆':oppWins>myWins?'💀':'🤝';
+    document.getElementById('rt').textContent = myWins>oppWins?'你赢了！':oppWins>myWins?'你输了':'平局';
+    document.getElementById('rs').textContent = `你 ${myWins}胜 · ${3-myWins-oppWins}平 · ${oppWins}胜 对手`;
+    document.getElementById('dots').innerHTML = results.map(r=>`<div class="dot ${r==='win'?'w':r==='lose'?'l':'d'}"></div>`).join('');
+  }, 500 + 3*450 + 200);
+}
+
+function burst(row) {
+  const r = row.getBoundingClientRect();
+  for (let i=0;i<6;i++) {
+    const p = document.createElement('div'); p.className = 'particle';
+    p.textContent = ['✨','⚡','💥'][i%3];
+    p.style.left = (r.left+r.width/2+(Math.random()-.5)*100)+'px';
+    p.style.top = (r.top+(Math.random()-.5)*30)+'px';
+    p.style.animationDelay = Math.random()*.15+'s';
+    document.body.appendChild(p); setTimeout(()=>p.remove(),600);
+  }
+}
+
+// ═══ WebSocket ═══
+
+let connectTimeout = null;
+
+function connect(callback) {
+  if (ws && ws.readyState === WebSocket.OPEN) { callback(); return; }
+  if (ws && ws.readyState === WebSocket.CONNECTING) { return; }
+  document.getElementById('app').innerHTML = '<div class="lobby-card"><div class="spinner" style="font-size:40px">🔗</div><p style="margin-top:12px">连接服务器中...</p><p style="font-size:12px;color:var(--d)">如果长时间卡住，请检查网络</p></div>';
+  try {
+    ws = new WebSocket(WS_URL);
+  } catch(e) {
+    document.getElementById('app').innerHTML = '<div class="lobby-card"><p style="color:var(--lose)">连接失败: WebSocket 不支持</p><button class="btn btn-outline" onclick="renderLobby()">返回</button></div>';
+    return;
+  }
+  clearTimeout(connectTimeout);
+  connectTimeout = setTimeout(() => {
+    if (ws.readyState !== WebSocket.OPEN) {
+      ws.close();
+      document.getElementById('app').innerHTML = '<div class="lobby-card"><p style="color:var(--lose)">连接超时</p><p style="font-size:12px;color:var(--d)">服务器可能已离线，请稍后再试</p><button class="btn btn-outline" onclick="renderLobby()">返回</button></div>';
+    }
+  }, 10000);
+  ws.onopen = () => { clearTimeout(connectTimeout); console.log('connected'); callback(); };
+  ws.onerror = (e) => {
+    clearTimeout(connectTimeout);
+    console.log('ws error', e);
+    document.getElementById('app').innerHTML = '<div class="lobby-card"><p style="color:var(--lose)">连接失败</p><p style="font-size:12px;color:var(--d)">服务器不可达，检查网络或稍后再试</p><button class="btn btn-outline" onclick="renderLobby()">返回</button></div>';
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'opponent_joined') {
+      document.getElementById('statusDot').className = 'dot on';
+      document.getElementById('statusText').textContent = '对手已加入！';
+    } else if (msg.type === 'opponent_left') {
+      document.getElementById('statusDot').className = 'dot';
+      document.getElementById('statusText').textContent = '对手离开了...';
+    } else if (msg.type === 'result') {
+      renderBattle(msg.my_picks, msg.opp_picks, msg.results, msg.my_wins, msg.opp_wins);
+      myPicks = [null,null,null];
+    }
+  };
+  ws.onclose = () => { console.log('disconnected'); };
+}
+
+function createRoom() {
+  connect(() => {
+    ws.send(JSON.stringify({action:'create'}));
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'created') {
+        roomId = msg.room; playerId = msg.player;
+        renderRoom();
+        // Override onmessage for game msgs
+        ws.onmessage = gameMsgHandler;
+      }
+    };
+  });
+}
+
+function joinRoom() {
+  const code = document.getElementById('roomInput').value.trim().toUpperCase();
+  if (!code) return;
+  connect(() => {
+    ws.send(JSON.stringify({action:'join', room:code}));
+    ws.onmessage = (e) => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'joined') {
+        roomId = msg.room; playerId = msg.player;
+        renderRoom();
+        ws.onmessage = gameMsgHandler;
+      } else if (msg.type === 'error') {
+        alert(msg.msg);
+      }
+    };
+  });
+}
+
+function gameMsgHandler(e) {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'opponent_joined') {
+    document.getElementById('statusDot').className = 'dot on';
+    document.getElementById('statusText').textContent = '对手已加入！';
+  } else if (msg.type === 'opponent_left') {
+    document.getElementById('statusDot').className = 'dot';
+    document.getElementById('statusText').textContent = '对手离开了...';
+  } else if (msg.type === 'result') {
+    renderBattle(msg.my_picks, msg.opp_picks, msg.results, msg.my_wins, msg.opp_wins);
+    myPicks = [null,null,null];
+  }
+}
+
+function submitPicks() {
+  ws.send(JSON.stringify({action:'pick', picks:myPicks}));
+  renderWaiting();
+}
+
+renderLobby();
+</script>
+</body>
+</html>

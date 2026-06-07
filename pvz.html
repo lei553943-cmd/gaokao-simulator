@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>迷你植物大战僵尸</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden;font-family:Arial}
+canvas{border:3px solid #4a3f2f;border-radius:8px;cursor:pointer}
+#ui{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;gap:20px;align-items:center;background:rgba(0,0,0,0.8);padding:10px 20px;border-radius:10px;z-index:10}
+#ui span{color:#fff;font-size:18px;font-weight:bold}
+#ui .sun{color:#ffd700}
+#ui .score{color:#4caf50}
+#ui .wave{color:#ff5722}
+#plants-bar{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);display:flex;gap:8px;background:rgba(0,0,0,0.85);padding:10px 20px;border-radius:10px;z-index:10}
+.plant-card{width:60px;height:70px;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;border:2px solid transparent}
+.plant-card:hover{border-color:#fff;transform:translateY(-3px)}
+.plant-card.selected{border-color:#ffd700;box-shadow:0 0 12px rgba(255,215,0,0.6)}
+.plant-card .emoji{font-size:28px}
+.plant-card .cost{color:#ffd700;font-size:12px;margin-top:2px}
+.plant-card .key{color:#888;font-size:10px}
+#gameover{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,0.9);color:#fff;padding:40px;border-radius:16px;text-align:center;z-index:20}
+#gameover h1{font-size:36px;margin-bottom:16px}
+#gameover button{margin-top:16px;padding:12px 32px;font-size:18px;border:none;border-radius:8px;cursor:pointer;background:#4caf50;color:#fff}
+#gameover button:hover{background:#66bb6a}
+</style>
+</head>
+<body>
+
+<div id="ui">
+  <span class="sun">☀️ <span id="sunCount">150</span></span>
+  <span class="score">⭐ <span id="score">0</span></span>
+  <span class="wave">🌊 第 <span id="waveNum">1</span> 波</span>
+</div>
+
+<div id="plants-bar">
+  <div class="plant-card selected" data-type="peashooter" id="card-pea">
+    <div class="emoji">🌿</div><div class="cost">☀️100</div><div class="key">1</div>
+  </div>
+  <div class="plant-card" data-type="sunflower" id="card-sun">
+    <div class="emoji">🌻</div><div class="cost">☀️50</div><div class="key">2</div>
+  </div>
+  <div class="plant-card" data-type="wallnut" id="card-nut">
+    <div class="emoji">🥜</div><div class="cost">☀️50</div><div class="key">3</div>
+  </div>
+  <div class="plant-card" data-type="snowpea" id="card-snow">
+    <div class="emoji">❄️</div><div class="cost">☀️175</div><div class="key">4</div>
+  </div>
+  <div class="plant-card" data-type="cherry" id="card-cherry">
+    <div class="emoji">💣</div><div class="cost">☀️150</div><div class="key">5</div>
+  </div>
+</div>
+
+<div id="gameover">
+  <h1 id="goTitle">🌿 你赢了！</h1>
+  <p id="goMsg">得分: 0</p>
+  <button onclick="location.reload()">再来一局</button>
+</div>
+
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+
+// Layout
+const COLS = 9, ROWS = 5;
+const CELL_W = 100, CELL_H = 100;
+const OFFSET_X = 40, OFFSET_Y = 80;
+canvas.width = OFFSET_X * 2 + COLS * CELL_W;
+canvas.height = OFFSET_Y + ROWS * CELL_H + 20;
+
+// State
+let sun = 150, score = 0, wave = 1, selectedPlant = 'peashooter';
+let plants = [], zombies = [], projectiles = [], particles = [];
+let frame = 0, gameOver = false, gameWon = false;
+let sunDropTimer = 0, zombieSpawnTimer = 0;
+let zombiesInWave = 0, zombiesSpawned = 0, waveCleared = false;
+
+// Plant definitions
+const PLANT_DEF = {
+  peashooter:  { cost:100, hp:300, color:'#4caf50', emoji:'🌿', cooldown:40, damage:20 },
+  sunflower:   { cost:50,  hp:200, color:'#ffd700', emoji:'🌻', cooldown:240, sunProd:25 },
+  wallnut:     { cost:50,  hp:800, color:'#8d6e63', emoji:'🥜', cooldown:0 },
+  snowpea:     { cost:175, hp:300, color:'#64b5f6', emoji:'❄️', cooldown:50, damage:20, slow:true },
+  cherry:      { cost:150, hp:999, emoji:'💣', explode:true },
+};
+
+// Grid
+const grid = Array.from({length:ROWS}, () => Array(COLS).fill(null));
+
+function gridToPixel(r, c) {
+  return { x: OFFSET_X + c * CELL_W + CELL_W/2, y: OFFSET_Y + r * CELL_H + CELL_H/2 };
+}
+
+function pixelToGrid(px, py) {
+  const c = Math.floor((px - OFFSET_X) / CELL_W);
+  const r = Math.floor((py - OFFSET_Y) / CELL_H);
+  if (c >= 0 && c < COLS && r >= 0 && r < ROWS) return { r, c };
+  return null;
+}
+
+// Plant class
+class Plant {
+  constructor(r, c, type) {
+    this.r = r; this.c = c;
+    this.type = type;
+    this.def = PLANT_DEF[type];
+    this.hp = this.def.hp;
+    this.cooldown = 0;
+    this.animTimer = 0;
+    grid[r][c] = this;
+  }
+  update() {
+    if (this.def.explode) {
+      // Cherry bomb: explode after short delay
+      this.animTimer++;
+      if (this.animTimer >= 30) {
+        for (let z of zombies) {
+          if (z.row === this.r && Math.abs(z.x - gridToPixel(this.r, this.c).x) < CELL_W * 1.5) {
+            z.hp -= 999;
+          }
+        }
+        // Also hit adjacent rows
+        for (let z of zombies) {
+          if (Math.abs(z.row - this.r) <= 1 && Math.abs(z.x - gridToPixel(this.r, this.c).x) < CELL_W * 1.5) {
+            z.hp -= 999;
+          }
+        }
+        for (let i = 0; i < 30; i++) {
+          particles.push(new Particle(
+            gridToPixel(this.r, this.c).x, gridToPixel(this.r, this.c).y,
+            (Math.random()-0.5)*8, (Math.random()-0.5)*8,
+            '#ff5722', 20 + Math.random()*20
+          ));
+        }
+        this.hp = 0;
+      }
+      return;
+    }
+    if (this.cooldown > 0) { this.cooldown--; return; }
+    if (this.type === 'sunflower') {
+      if (this.cooldown <= 0) {
+        sun += this.def.sunProd;
+        this.cooldown = this.def.cooldown;
+        for (let i = 0; i < 5; i++) {
+          particles.push(new Particle(
+            gridToPixel(this.r, this.c).x, gridToPixel(this.r, this.c).y - 20,
+            (Math.random()-0.5)*2, -2 - Math.random()*2,
+            '#ffd700', 30 + Math.random()*20
+          ));
+        }
+      }
+      return;
+    }
+    // Shooter: find nearest zombie in this row
+    let target = null;
+    for (let z of zombies) {
+      if (z.row === this.r && z.x > gridToPixel(this.r, this.c).x) {
+        if (!target || z.x < target.x) target = z;
+      }
+    }
+    if (target) {
+      this.cooldown = this.def.cooldown;
+      let p = gridToPixel(this.r, this.c);
+      projectiles.push(new Projectile(
+        p.x + 15, p.y - 10, this.r,
+        this.def.damage, this.def.slow || false
+      ));
+    }
+  }
+  draw(ctx) {
+    let p = gridToPixel(this.r, this.c);
+    if (this.def.explode) {
+      ctx.font = `${30 + this.animTimer}px serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(this.def.emoji, p.x, p.y + 15);
+      return;
+    }
+    // Plant body
+    ctx.fillStyle = this.def.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - 8, 22, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Emoji
+    ctx.font = '24px serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.def.emoji, p.x, p.y + 3);
+    // HP bar
+    if (this.hp < this.def.hp) {
+      let bw = 40, bh = 4;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(p.x - bw/2, p.y - 32, bw, bh);
+      ctx.fillStyle = this.hp / this.def.hp > 0.5 ? '#4caf50' : this.hp / this.def.hp > 0.25 ? '#ff9800' : '#f44336';
+      ctx.fillRect(p.x - bw/2, p.y - 32, bw * (this.hp / this.def.hp), bh);
+    }
+  }
+}
+
+// Zombie class
+class Zombie {
+  constructor(row, type = 'normal') {
+    this.row = row;
+    this.x = canvas.width - OFFSET_X;
+    this.y = OFFSET_Y + row * CELL_H + CELL_H/2;
+    this.hp = type === 'cone' ? 200 : type === 'bucket' ? 350 : 100;
+    this.maxHp = this.hp;
+    this.speed = 0.3 + Math.random() * 0.2;
+    this.slowTimer = 0;
+    this.eating = false;
+    this.eatTimer = 0;
+    this.type = type;
+    this.frameOffset = Math.random() * 100;
+  }
+  update() {
+    if (this.slowTimer > 0) { this.slowTimer--; }
+    let spd = this.slowTimer > 0 ? this.speed * 0.4 : this.speed;
+    // Check for plant in front
+    let p = gridToPixel(this.row, 0);
+    this.eating = false;
+    for (let c = 0; c < COLS; c++) {
+      let gp = gridToPixel(this.row, c);
+      if (grid[this.row][c] && Math.abs(this.x - gp.x) < 30 && this.x > gp.x - 10) {
+        this.eating = true;
+        this.eatTimer++;
+        if (this.eatTimer >= 60) {
+          this.eatTimer = 0;
+          grid[this.row][c].hp -= 40;
+          if (grid[this.row][c].hp <= 0) {
+            grid[this.row][c] = null;
+          }
+        }
+        break;
+      }
+    }
+    if (!this.eating) {
+      this.x -= spd;
+      this.eatTimer = 0;
+    }
+    return this.x < OFFSET_X - 20; // reached house
+  }
+  draw(ctx) {
+    ctx.save();
+    // Body
+    let bob = Math.sin((frame + this.frameOffset) * 0.1) * 2;
+    ctx.fillStyle = this.type === 'bucket' ? '#607d8b' : this.type === 'cone' ? '#ff9800' : '#8bc34a';
+    // Head
+    ctx.beginPath();
+    ctx.arc(this.x, this.y - 15 + bob, 16, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Bucket/cone
+    if (this.type === 'bucket') {
+      ctx.fillStyle = '#546e7a';
+      ctx.fillRect(this.x - 10, this.y - 32 + bob, 20, 14);
+    } else if (this.type === 'cone') {
+      ctx.fillStyle = '#f57c00';
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - 38 + bob);
+      ctx.lineTo(this.x - 8, this.y - 18 + bob);
+      ctx.lineTo(this.x + 8, this.y - 18 + bob);
+      ctx.fill();
+    }
+    // Arms
+    ctx.strokeStyle = '#8bc34a';
+    ctx.lineWidth = 3;
+    let armWave = Math.sin((frame + this.frameOffset) * 0.15) * 5;
+    ctx.beginPath();
+    ctx.moveTo(this.x - 10, this.y - 5 + bob);
+    ctx.lineTo(this.x - 20, this.y - 15 + armWave + bob);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(this.x + 10, this.y - 5 + bob);
+    ctx.lineTo(this.x + 20, this.y - 15 - armWave + bob);
+    ctx.stroke();
+    // HP bar
+    if (this.hp < this.maxHp) {
+      let bw = 30;
+      ctx.fillStyle = '#333';
+      ctx.fillRect(this.x - bw/2, this.y - 36 + bob, bw, 4);
+      ctx.fillStyle = this.hp / this.maxHp > 0.5 ? '#4caf50' : '#f44336';
+      ctx.fillRect(this.x - bw/2, this.y - 36 + bob, bw * (this.hp / this.maxHp), 4);
+    }
+    ctx.restore();
+  }
+}
+
+// Projectile class
+class Projectile {
+  constructor(x, y, row, damage, slow) {
+    this.x = x; this.y = y; this.row = row;
+    this.damage = damage; this.slow = slow;
+    this.speed = 5;
+  }
+  update() {
+    this.x += this.speed;
+    if (this.x > canvas.width) return true;
+    // Hit check
+    for (let z of zombies) {
+      if (z.row === this.row && Math.abs(z.x - this.x) < 22 && Math.abs(z.y - this.y) < 30) {
+        z.hp -= this.damage;
+        if (this.slow) z.slowTimer = 120;
+        particles.push(new Particle(this.x, this.y, -1, (Math.random()-0.5)*2, '#64b5f6', 15));
+        return true; // remove projectile
+      }
+    }
+    return false;
+  }
+  draw(ctx) {
+    ctx.fillStyle = this.slow ? '#64b5f6' : '#4caf50';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 5, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+// Particle class
+class Particle {
+  constructor(x, y, vx, vy, color, life) {
+    this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+    this.color = color; this.life = life; this.maxLife = life;
+  }
+  update() { this.x += this.vx; this.y += this.vy; this.life--; return this.life <= 0; }
+  draw(ctx) {
+    ctx.globalAlpha = this.life / this.maxLife;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// Wave config
+function getWaveConfig(w) {
+  let count = 3 + w * 2;
+  let types = ['normal'];
+  if (w >= 3) types.push('cone');
+  if (w >= 6) types.push('bucket');
+  return { count, types };
+}
+
+function spawnZombie() {
+  let cfg = getWaveConfig(wave);
+  if (zombiesSpawned >= cfg.count) return;
+  let row = Math.floor(Math.random() * ROWS);
+  let type = cfg.types[Math.floor(Math.random() * cfg.types.length)];
+  zombies.push(new Zombie(row, type));
+  zombiesSpawned++;
+  zombiesInWave++;
+}
+
+// Input
+canvas.addEventListener('click', (e) => {
+  if (gameOver) return;
+  let rect = canvas.getBoundingClientRect();
+  let mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  let g = pixelToGrid(mx, my);
+  if (g && !grid[g.r][g.c]) {
+    let def = PLANT_DEF[selectedPlant];
+    if (sun >= def.cost) {
+      sun -= def.cost;
+      plants.push(new Plant(g.r, g.c, selectedPlant));
+    }
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  if (e.key === '1') selectPlant('peashooter');
+  if (e.key === '2') selectPlant('sunflower');
+  if (e.key === '3') selectPlant('wallnut');
+  if (e.key === '4') selectPlant('snowpea');
+  if (e.key === '5') selectPlant('cherry');
+});
+
+// Plant card clicks
+document.querySelectorAll('.plant-card').forEach(card => {
+  card.addEventListener('click', () => {
+    selectPlant(card.dataset.type);
+  });
+});
+
+function selectPlant(type) {
+  selectedPlant = type;
+  document.querySelectorAll('.plant-card').forEach(c => c.classList.remove('selected'));
+  document.getElementById(`card-${type === 'peashooter' ? 'pea' : type === 'sunflower' ? 'sun' : type === 'wallnut' ? 'nut' : type === 'snowpea' ? 'snow' : 'cherry'}`).classList.add('selected');
+}
+
+// Sky sun drops
+function dropSkySun() {
+  let x = OFFSET_X + Math.random() * (COLS * CELL_W);
+  let targetY = OFFSET_Y + Math.random() * (ROWS * CELL_H);
+  // Create a falling sun particle
+  particles.push(new Particle(x, -20, 0, 1.5, '#ffd700', 999));
+  ((p) => {
+    let interval = setInterval(() => {
+      if (p.life <= 0 || gameOver) { clearInterval(interval); return; }
+      if (p.y >= targetY) {
+        sun += 25;
+        p.life = 0;
+        clearInterval(interval);
+      }
+    }, 30);
+  })(particles[particles.length-1]);
+}
+
+// Game loop
+function update() {
+  if (gameOver) return;
+  frame++;
+
+  // Sun drops
+  sunDropTimer++;
+  if (sunDropTimer >= 300 + Math.random() * 200) {
+    sunDropTimer = 0;
+    dropSkySun();
+  }
+
+  // Zombie spawning
+  zombieSpawnTimer++;
+  let cfg = getWaveConfig(wave);
+  if (zombieSpawnTimer >= 120 + Math.random() * 120 && zombiesSpawned < cfg.count) {
+    zombieSpawnTimer = 0;
+    spawnZombie();
+  }
+
+  // Update plants
+  for (let p of plants) p.update();
+  plants = plants.filter(p => p.hp > 0);
+  // Sync grid
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (grid[r][c] && grid[r][c].hp <= 0) grid[r][c] = null;
+
+  // Update zombies
+  for (let z of zombies) {
+    if (z.update()) { gameOver = true; document.getElementById('goTitle').textContent = '🧟 僵尸入侵！'; }
+  }
+  zombies = zombies.filter(z => z.hp > 0);
+  if (zombies.length > 0) {
+    zombiesInWave = zombies.filter(z => true).length;
+  }
+
+  // Update projectiles
+  projectiles = projectiles.filter(p => !p.update());
+
+  // Update particles
+  particles = particles.filter(p => !p.update());
+
+  // Check if wave cleared
+  cfg = getWaveConfig(wave);
+  if (zombiesSpawned >= cfg.count && zombies.length === 0) {
+    if (wave >= 10) {
+      gameOver = true;
+      gameWon = true;
+      document.getElementById('goTitle').textContent = '🏆 你赢了！';
+    } else {
+      wave++;
+      zombiesSpawned = 0;
+      zombieSpawnTimer = 90; // short pause between waves
+    }
+  }
+
+  document.getElementById('sunCount').textContent = sun;
+  document.getElementById('score').textContent = score + zombies.filter(z => z.hp <= 0).length;
+  document.getElementById('waveNum').textContent = wave;
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background - lawn
+  ctx.fillStyle = '#4a7c3f';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Grid
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      let x = OFFSET_X + c * CELL_W, y = OFFSET_Y + r * CELL_H;
+      ctx.fillStyle = (r + c) % 2 === 0 ? '#5a9a4b' : '#4d8a3e';
+      ctx.fillRect(x, y, CELL_W, CELL_H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, CELL_W, CELL_H);
+    }
+  }
+
+  // Hover highlight
+  // (handled in mousemove event)
+
+  // Plants
+  for (let p of plants) p.draw(ctx);
+
+  // Zombies
+  for (let z of zombies) z.draw(ctx);
+
+  // Projectiles
+  for (let p of projectiles) p.draw(ctx);
+
+  // Particles
+  for (let p of particles) p.draw(ctx);
+
+  // Top bar
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(0, 0, canvas.width, OFFSET_Y);
+}
+
+function gameLoop() {
+  update();
+  draw();
+  if (gameOver) {
+    document.getElementById('gameover').style.display = 'block';
+    document.getElementById('goMsg').textContent = `得分: ${score} | 到达第 ${wave} 波`;
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+// Start
+gameLoop();
+
+// Initial zombies
+setTimeout(() => { for (let i = 0; i < 3; i++) spawnZombie(); }, 2000);
+</script>
+</body>
+</html>

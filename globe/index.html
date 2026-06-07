@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球监控 // 地球界面</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cyan: #00f0ff;
+    --magenta: #ff00ff;
+    --amber: #ffb800;
+    --dark: #050510;
+    --panel-bg: rgba(5, 5, 20, 0.92);
+    --border: rgba(0, 240, 255, 0.3);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--dark);
+    overflow: hidden;
+    font-family: 'Share Tech Mono', monospace;
+    color: var(--cyan);
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #bg-grid {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image:
+      radial-gradient(circle, rgba(0, 240, 255, 0.08) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+
+  #bg-vignette {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(5,5,20,0.85) 100%);
+  }
+
+  #globe-canvas {
+    position: fixed; inset: 0; z-index: 1;
+  }
+
+  /* HUD TOP */
+  #hud-top {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    padding: 20px 30px;
+    pointer-events: none;
+  }
+  .hud-block {
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    padding: 12px 20px;
+    position: relative;
+  }
+  .hud-block::before {
+    content: ''; position: absolute; top: -1px; left: 10px; right: 10px;
+    height: 2px; background: var(--cyan);
+    box-shadow: 0 0 10px var(--cyan), 0 0 20px var(--cyan);
+  }
+  .hud-title {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.2rem; font-weight: 900; letter-spacing: 3px;
+    color: var(--cyan);
+    text-shadow: 0 0 10px var(--cyan), 0 0 30px var(--cyan);
+  }
+  .hud-subtitle { font-size: 0.65rem; color: rgba(0,240,255,0.6); letter-spacing: 2px; margin-top: 2px; }
+  .hud-time { font-size: 0.85rem; color: var(--cyan); letter-spacing: 1px; }
+  .hud-time .live-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #00ff44; margin-right: 8px;
+    animation: live-pulse 1.5s ease-in-out infinite;
+    box-shadow: 0 0 6px #00ff44, 0 0 12px #00ff44;
+  }
+  @keyframes live-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .hud-coords { font-size: 0.7rem; color: rgba(0,240,255,0.5); text-align: right; margin-top: 4px; }
+
+  /* INFO PANEL */
+  #info-panel {
+    position: fixed; right: -420px; top: 50%; transform: translateY(-50%);
+    z-index: 10; width: 380px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-right: none;
+    padding: 0;
+    transition: right 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: -5px 0 30px rgba(0, 240, 255, 0.1);
+  }
+  #info-panel.active { right: 0; }
+  #info-panel .panel-accent {
+    height: 3px; background: linear-gradient(90deg, transparent, var(--cyan), var(--magenta));
+    box-shadow: 0 0 15px var(--cyan);
+  }
+  #info-panel .panel-header {
+    padding: 20px 24px 12px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  #info-panel .city-name {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.4rem; font-weight: 700;
+    color: #fff;
+    text-shadow: 0 0 20px var(--cyan);
+    letter-spacing: 2px;
+  }
+  #info-panel .city-country {
+    font-size: 0.7rem; color: rgba(0,240,255,0.6); letter-spacing: 2px; margin-top: 4px;
+  }
+  #info-panel .close-btn {
+    background: none; border: 1px solid rgba(255,255,255,0.2); color: var(--cyan);
+    width: 30px; height: 30px; cursor: pointer; font-size: 1rem;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.2s;
+  }
+  #info-panel .close-btn:hover {
+    border-color: var(--cyan); background: rgba(0,240,255,0.1);
+    box-shadow: 0 0 10px rgba(0,240,255,0.3);
+  }
+  #info-panel .panel-body { padding: 0 24px 24px; }
+  #info-panel .info-row {
+    display: flex; justify-content: space-between; padding: 8px 0;
+    border-bottom: 1px solid rgba(0,240,255,0.1);
+    font-size: 0.75rem;
+  }
+  #info-panel .info-label { color: rgba(0,240,255,0.5); letter-spacing: 1px; }
+  #info-panel .info-value { color: #fff; }
+  #info-panel .info-desc {
+    margin-top: 14px; font-size: 0.78rem; line-height: 1.6;
+    color: rgba(255,255,255,0.7);
+    border-left: 2px solid var(--cyan);
+    padding-left: 14px;
+  }
+
+  /* NEWS TICKER */
+  #news-ticker {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    height: 48px; background: rgba(5,5,20,0.95);
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+    display: flex; align-items: center;
+  }
+  #news-ticker .ticker-label {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 2px;
+    color: #000; background: var(--cyan);
+    padding: 6px 14px; margin: 0 16px 0 0;
+    white-space: nowrap;
+    box-shadow: 0 0 15px var(--cyan);
+    z-index: 2;
+  }
+  #news-ticker .ticker-track {
+    display: flex; gap: 40px;
+    animation: ticker-scroll 60s linear infinite;
+    white-space: nowrap;
+  }
+  #news-ticker:hover .ticker-track { animation-play-state: paused; }
+  @keyframes ticker-scroll {
+    0% { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .ticker-item {
+    font-size: 0.72rem; color: rgba(255,255,255,0.75);
+    letter-spacing: 0.5px; cursor: pointer;
+    transition: color 0.2s;
+  }
+  .ticker-item:hover { color: var(--cyan); text-shadow: 0 0 8px var(--cyan); }
+  .ticker-sep { color: rgba(0,240,255,0.4); margin: 0 8px; }
+
+  /* SCAN LINE OVERLAY */
+  #scan-overlay {
+    position: fixed; inset: 0; z-index: 5; pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 240, 255, 0.015) 2px,
+      rgba(0, 240, 255, 0.015) 4px
+    );
+  }
+
+  /* DECORATIVE CORNERS */
+  .corner-decor {
+    position: fixed; z-index: 10; pointer-events: none;
+    width: 60px; height: 60px;
+  }
+  .corner-decor::before, .corner-decor::after {
+    content: ''; position: absolute;
+    background: var(--cyan);
+    box-shadow: 0 0 6px var(--cyan);
+  }
+  #corner-tl { top: 12px; left: 12px; }
+  #corner-tr { top: 12px; right: 12px; }
+  #corner-bl { bottom: 60px; left: 12px; }
+  #corner-br { bottom: 60px; right: 12px; }
+
+  #corner-tl::before { top: 0; left: 0; width: 20px; height: 1px; }
+  #corner-tl::after  { top: 0; left: 0; width: 1px; height: 20px; }
+  #corner-tr::before { top: 0; right: 0; width: 20px; height: 1px; }
+  #corner-tr::after  { top: 0; right: 0; width: 1px; height: 20px; }
+  #corner-bl::before { bottom: 0; left: 0; width: 20px; height: 1px; }
+  #corner-bl::after  { bottom: 0; left: 0; width: 1px; height: 20px; }
+  #corner-br::before { bottom: 0; right: 0; width: 20px; height: 1px; }
+  #corner-br::after  { bottom: 0; right: 0; width: 1px; height: 20px; }
+
+  /* LOADING */
+  #loading {
+    position: fixed; inset: 0; z-index: 100;
+    background: var(--dark);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 0.6s;
+  }
+  #loading.hidden { opacity: 0; pointer-events: none; }
+  #loading .load-ring {
+    width: 60px; height: 60px;
+    border: 2px solid rgba(0,240,255,0.2);
+    border-top-color: var(--cyan);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    box-shadow: 0 0 20px rgba(0,240,255,0.3);
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading .load-text {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.8rem; letter-spacing: 3px;
+    color: var(--cyan); margin-top: 20px;
+    text-shadow: 0 0 10px var(--cyan);
+  }
+
+  /* RESPONSIVE */
+  @media (max-width: 768px) {
+    #hud-top { padding: 10px 15px; }
+    .hud-title { font-size: 0.9rem; }
+    #info-panel { width: 300px; right: -340px; }
+    #news-ticker { height: 38px; }
+    #news-ticker .ticker-label { font-size: 0.55rem; padding: 4px 10px; }
+    .ticker-item { font-size: 0.62rem; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bg-grid"></div>
+<div id="bg-vignette"></div>
+<div id="scan-overlay"></div>
+
+<canvas id="globe-canvas"></canvas>
+
+<div id="hud-top">
+  <div class="hud-block">
+    <div class="hud-title">🌍 全球监控</div>
+    <div class="hud-subtitle">地球界面 V3.0</div>
+  </div>
+  <div class="hud-block" style="text-align:right;">
+    <div class="hud-time"><span class="live-dot"></span><span id="clock">00:00:00 UTC</span></div>
+    <div class="hud-coords" id="cursor-coords">北纬 0.00° / 东经 0.00°</div>
+  </div>
+</div>
+
+<div id="info-panel">
+  <div class="panel-accent"></div>
+  <div class="panel-header">
+    <div>
+      <div class="city-name" id="panel-city">--</div>
+      <div class="city-country" id="panel-country">--</div>
+    </div>
+    <button class="close-btn" id="panel-close">✕</button>
+  </div>
+  <div class="panel-body">
+    <div class="info-row"><span class="info-label">人口</span><span class="info-value" id="panel-pop">--</span></div>
+    <div class="info-row"><span class="info-label">坐标</span><span class="info-value" id="panel-coords">--</span></div>
+    <div class="info-row"><span class="info-label">时区</span><span class="info-value" id="panel-tz">--</span></div>
+    <div class="info-desc" id="panel-desc">点击地球上的城市标记查看详情</div>
+  </div>
+</div>
+
+<div id="news-ticker">
+  <div class="ticker-label">◆ 实时快讯</div>
+  <div class="ticker-track" id="ticker-track"></div>
+</div>
+
+<div class="corner-decor" id="corner-tl"></div>
+<div class="corner-decor" id="corner-tr"></div>
+<div class="corner-decor" id="corner-bl"></div>
+<div class="corner-decor" id="corner-br"></div>
+
+<div id="loading">
+  <div class="load-ring"></div>
+  <div class="load-text">初始化中...</div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ─── CITY DATA ────────────────────────────────────────────
+const cities = [
+  { name:'纽约', country:'美国', lat:40.71, lng:-74.01, pop:'1960万', tz:'UTC-5/-4', desc:'全球金融中心，美国人口最多的城市。华尔街、百老汇和自由女神像的所在地，引领全球金融与文化产业。' },
+  { name:'洛杉矶', country:'美国', lat:34.05, lng:-118.24, pop:'1280万', tz:'UTC-8/-7', desc:'世界娱乐之都，电影电视产业中心。好莱坞和硅滩科技圈所在地，连接娱乐与科技的创新枢纽。' },
+  { name:'芝加哥', country:'美国', lat:41.88, lng:-87.63, pop:'890万', tz:'UTC-6/-5', desc:'中西部金融中心与建筑创新之都。摩天大楼发源地，现代期货交易和建筑设计的全球领军者。' },
+  { name:'多伦多', country:'加拿大', lat:43.65, lng:-79.38, pop:'630万', tz:'UTC-5/-4', desc:'加拿大最大城市和人工智能研究重镇。向量研究所所在地，拥有蓬勃发展的科技创业生态。' },
+  { name:'墨西哥城', country:'墨西哥', lat:19.43, lng:-99.13, pop:'2190万', tz:'UTC-6', desc:'西半球最大的都市区之一。古阿兹特克首都演变为现代超级都市，拥有丰富的文化遗产。' },
+  { name:'圣保罗', country:'巴西', lat:-23.55, lng:-46.63, pop:'2200万', tz:'UTC-3', desc:'南半球最大城市，巴西经济引擎。全球文化与美食的熔炉，拉丁美洲最重要的金融科技中心。' },
+  { name:'里约热内卢', country:'巴西', lat:-22.91, lng:-43.20, pop:'1340万', tz:'UTC-3', desc:'标志性海滨城市，以科帕卡巴纳海滩、基督像和狂欢节闻名。科技与能源产业的重要枢纽。' },
+  { name:'布宜诺斯艾利斯', country:'阿根廷', lat:-34.60, lng:-58.38, pop:'1530万', tz:'UTC-3', desc:'"南美巴黎"，以探戈、建筑和蓬勃的金融科技闻名。阿根廷文化与经济的绝对中心。' },
+  { name:'伦敦', country:'英国', lat:51.51, lng:-0.13, pop:'1480万', tz:'UTC+0/+1', desc:'全球金融中心和访问量最大的城市之一。人工智能、金融科技和创意产业的领军枢纽。' },
+  { name:'巴黎', country:'法国', lat:48.86, lng:2.35, pop:'1110万', tz:'UTC+1/+2', desc:'光之城和全球时尚之都。欧洲重要的创业中心，汇聚人工智能研究与奢侈品科技。' },
+  { name:'柏林', country:'德国', lat:52.52, lng:13.40, pop:'610万', tz:'UTC+1/+2', desc:'欧洲创业之都，拥有充满活力的科技场景。以创意能量、历史和不断增长的人工智能生态闻名。' },
+  { name:'罗马', country:'意大利', lat:41.90, lng:12.50, pop:'420万', tz:'UTC+1/+2', desc:'拥有2800年历史的永恒之城。新兴科技中心，将古老遗产与现代创新完美融合。' },
+  { name:'马德里', country:'西班牙', lat:40.42, lng:-3.70, pop:'670万', tz:'UTC+1/+2', desc:'西班牙首都和日益发展的科技目的地。可再生能源技术和电信的重要中心。' },
+  { name:'莫斯科', country:'俄罗斯', lat:55.75, lng:37.62, pop:'1260万', tz:'UTC+3', desc:'欧洲境内最大城市。航空航天、国防技术和数学科学的重要中心。' },
+  { name:'伊斯坦布尔', country:'土耳其', lat:41.01, lng:28.98, pop:'1550万', tz:'UTC+3', desc:'横跨欧亚两洲的城市。古老文明十字路口与新兴科技投资中心，连接东西方的桥梁。' },
+  { name:'开罗', country:'埃及', lat:30.04, lng:31.24, pop:'2130万', tz:'UTC+2', desc:'阿拉伯世界最大城市。古老金字塔与蓬勃发展的科技创业和智慧城市计划交相辉映。' },
+  { name:'拉各斯', country:'尼日利亚', lat:6.52, lng:3.38, pop:'2100万', tz:'UTC+1', desc:'非洲最大城市和科技中心。蓬勃发展的金融科技和充满活力的创意经济所在地。' },
+  { name:'约翰内斯堡', country:'南非', lat:-26.20, lng:28.05, pop:'1000万', tz:'UTC+2', desc:'南非经济心脏。矿业科技创新中心和通往非洲市场的门户。' },
+  { name:'内罗毕', country:'肯尼亚', lat:-1.29, lng:36.82, pop:'530万', tz:'UTC+3', desc:'"硅草原"——东非科技中心。移动支付和农业技术的先驱，非洲创新的代表。' },
+  { name:'迪拜', country:'阿联酋', lat:25.20, lng:55.27, pop:'350万', tz:'UTC+4', desc:'开创区块链政务服务、自动驾驶和人工智能城市规划的未来之城。中东科技创新的旗帜。' },
+  { name:'孟买', country:'印度', lat:19.08, lng:72.88, pop:'2160万', tz:'UTC+5:30', desc:'印度金融之都和宝莱坞的故乡。快速发展的科技中心，拥有蓬勃的创业生态。' },
+  { name:'德里', country:'印度', lat:28.61, lng:77.23, pop:'3200万', tz:'UTC+5:30', desc:'印度首都，世界最大的城市群之一。信息技术服务和政策创新的重要中心。' },
+  { name:'曼谷', country:'泰国', lat:13.75, lng:100.50, pop:'1740万', tz:'UTC+7', desc:'东南亚访问量最大的城市。数字经济日益发展，在电子商务和游戏科技方面具有优势。' },
+  { name:'新加坡', country:'新加坡', lat:1.35, lng:103.82, pop:'590万', tz:'UTC+8', desc:'全球智慧国家先驱。人工智能治理、金融科技、生物技术和城市可持续发展的世界领导者。' },
+  { name:'上海', country:'中国', lat:31.23, lng:121.47, pop:'2850万', tz:'UTC+8', desc:'中国最大城市和全球金融中心。量子计算研究和自动驾驶部署的先行者。' },
+  { name:'北京', country:'中国', lat:39.90, lng:116.41, pop:'2150万', tz:'UTC+8', desc:'中国首都和全球人工智能超级大国中心。汇聚众多世界领先科技企业的创新之都。' },
+  { name:'东京', country:'日本', lat:35.68, lng:139.76, pop:'3710万', tz:'UTC+9', desc:'世界最大的都市圈。机器人、电子和新一代基础设施的全球领导者。' },
+  { name:'首尔', country:'韩国', lat:37.57, lng:126.98, pop:'2550万', tz:'UTC+9', desc:'全球连接度最高的城市，拥有无与伦比的宽带网络。半导体技术和数字治理的领军者。' },
+  { name:'台北', country:'台湾', lat:25.03, lng:121.57, pop:'700万', tz:'UTC+8', desc:'全球半导体制造之都。台积电所在地，拥有繁荣的硬件创业生态。' },
+  { name:'香港', country:'中国（特别行政区）', lat:22.32, lng:114.17, pop:'750万', tz:'UTC+8', desc:'全球主要金融中心，拥有世界上最多的摩天大楼。连接东西方的科技投资门户。' },
+  { name:'悉尼', country:'澳大利亚', lat:-33.87, lng:151.21, pop:'530万', tz:'UTC+10/+11', desc:'澳大利亚最大城市和金融科技之都。通往亚太市场的门户，在量子计算方面具有优势。' },
+  { name:'墨尔本', country:'澳大利亚', lat:-37.81, lng:144.96, pop:'510万', tz:'UTC+10/+11', desc:'澳大利亚文化与科技中心。生物技术、人工智能伦理研究和可持续城市设计的领军中心。' },
+];
+const GLOBE_RADIUS = 5;
+
+function latLngToVec3(lat, lng, radius = GLOBE_RADIUS) {
+  const phi = THREE.MathUtils.degToRad(90 - lat);
+  const theta = THREE.MathUtils.degToRad(lng + 90);
+  return new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta)
+  );
+}
+
+// ─── SCENE SETUP ──────────────────────────────────────────
+const container = document.getElementById('globe-canvas');
+const renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.5, 100);
+camera.position.set(0, 1.5, 14);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;
+controls.minDistance = 7;
+controls.maxDistance = 22;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.target.set(0, 0, 0);
+
+// ─── LIGHTING ─────────────────────────────────────────────
+const ambientLight = new THREE.AmbientLight(0x112244, 1.5);
+scene.add(ambientLight);
+const sunLight = new THREE.DirectionalLight(0xffffff, 2.5);
+sunLight.position.set(8, 3, 8);
+scene.add(sunLight);
+const fillLight = new THREE.DirectionalLight(0x4488cc, 0.8);
+fillLight.position.set(-5, -2, -5);
+scene.add(fillLight);
+
+// ─── GLOBE TEXTURE (Canvas) ───────────────────────────────
+function generateGlobeTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+
+  // Ocean
+  const oceanGrad = ctx.createLinearGradient(0, 0, 0, 1024);
+  oceanGrad.addColorStop(0, '#060a18');
+  oceanGrad.addColorStop(0.5, '#0a1028');
+  oceanGrad.addColorStop(1, '#060a18');
+  ctx.fillStyle = oceanGrad;
+  ctx.fillRect(0, 0, 2048, 1024);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0, 200, 255, 0.12)';
+  ctx.lineWidth = 1;
+  for (let lng = -180; lng < 180; lng += 15) {
+    const x = (lng + 180) / 360 * 2048;
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 1024); ctx.stroke();
+  }
+  for (let lat = -75; lat <= 75; lat += 15) {
+    const y = (90 - lat) / 180 * 1024;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(2048, y); ctx.stroke();
+  }
+
+  // Equator highlight
+  ctx.strokeStyle = 'rgba(0, 240, 255, 0.25)';
+  ctx.lineWidth = 2;
+  const eqY = 512;
+  ctx.beginPath(); ctx.moveTo(0, eqY); ctx.lineTo(2048, eqY); ctx.stroke();
+
+  // Simplified continent polygons (rough, for visual context)
+  const continents = {
+    northAmerica: [[-130,55],[-125,48],[-122,36],[-118,33],[-105,20],[-90,15],[-83,9],[-78,8],[-76,20],[-68,44],[-65,47],[-72,42],[-80,30],[-90,30],[-97,28],[-100,40],[-108,50],[-120,55],[-135,58],[-140,60],[-145,62],[-155,58],[-130,55]],
+    southAmerica: [[-80,8],[-77,2],[-80,-4],[-76,-13],[-70,-18],[-65,-23],[-58,-35],[-65,-45],[-72,-50],[-75,-46],[-72,-35],[-68,-25],[-60,-16],[-53,-5],[-52,3],[-58,6],[-68,9],[-75,11],[-80,8]],
+    europe: [[-10,36],[0,38],[3,42],[-2,47],[2,52],[-5,56],[-3,58],[5,53],[10,55],[20,55],[28,56],[33,60],[25,65],[20,65],[15,60],[10,55],[5,48],[10,44],[5,40],[-1,38],[-10,36]],
+    africa: [[-17,15],[-15,12],[10,12],[12,12],[20,12],[30,15],[32,20],[40,22],[33,15],[30,10],[35,5],[42,0],[49,2],[51,10],[43,12],[35,20],[30,30],[25,35],[18,35],[15,32],[12,34],[8,30],[5,28],[-5,28],[-8,25],[-15,20],[-17,18],[-17,15]],
+    asia: [[30,40],[35,40],[38,45],[50,45],[55,50],[60,50],[70,55],[80,55],[90,55],[95,50],[105,50],[110,45],[120,40],[125,35],[128,35],[130,33],[140,35],[145,42],[150,45],[155,48],[160,50],[170,55],[175,55],[180,55],[180,45],[170,42],[160,38],[150,35],[140,30],[135,25],[130,20],[120,15],[110,10],[100,5],[90,8],[80,10],[70,10],[60,10],[50,15],[40,18],[30,15],[25,20],[20,25],[25,30],[30,35],[30,40]],
+    australia: [[115,-20],[120,-15],[130,-12],[140,-15],[148,-18],[150,-22],[152,-27],[150,-32],[145,-35],[138,-33],[130,-30],[120,-32],[115,-28],[113,-25],[114,-22],[115,-20]],
+    greenland: [[-55,60],[-45,60],[-20,65],[-15,70],[-20,75],[-40,78],[-55,78],[-58,75],[-55,70],[-55,60]],
+    japan: [[130,33],[140,35],[145,42],[140,38],[135,34],[130,33]],
+    uk: [[-6,50],[2,51],[1,53],[-3,57],[-5,56],[-6,50]],
+    indonesia: [[95,0],[105,-5],[115,-8],[125,-8],[135,-5],[140,0],[135,0],[125,2],[115,0],[105,0],[95,0]],
+  };
+
+  const toCanvas = (lng, lat) => [ (lng + 180) / 360 * 2048, (90 - lat) / 180 * 1024 ];
+
+  ctx.fillStyle = 'rgba(0, 180, 255, 0.08)';
+  ctx.strokeStyle = 'rgba(0, 200, 255, 0.15)';
+  ctx.lineWidth = 1;
+  Object.values(continents).forEach(pts => {
+    if (pts.length < 3) return;
+    ctx.beginPath();
+    const [cx, cy] = toCanvas(pts[0][0], pts[0][1]);
+    ctx.moveTo(cx, cy);
+    for (let i = 1; i < pts.length; i++) {
+      const [x, y] = toCanvas(pts[i][0], pts[i][1]);
+      ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  });
+
+  // City hotspots
+  cities.forEach(city => {
+    const cx = (city.lng + 180) / 360 * 2048;
+    const cy = (90 - city.lat) / 180 * 1024;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 28);
+    grad.addColorStop(0, 'rgba(0, 240, 255, 0.45)');
+    grad.addColorStop(0.4, 'rgba(0, 200, 255, 0.12)');
+    grad.addColorStop(1, 'rgba(0, 100, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(cx - 28, cy - 28, 56, 56);
+  });
+
+  return new THREE.CanvasTexture(canvas);
+}
+
+// ─── GLOBE MESH ───────────────────────────────────────────
+const globeGroup = new THREE.Group();
+scene.add(globeGroup);
+
+const globeTexture = generateGlobeTexture();
+globeTexture.colorSpace = THREE.SRGBColorSpace;
+const globeGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 128, 64);
+const globeMat = new THREE.MeshStandardMaterial({
+  map: globeTexture,
+  roughness: 0.6,
+  metalness: 0.2,
+});
+const globeMesh = new THREE.Mesh(globeGeo, globeMat);
+globeGroup.add(globeMesh);
+
+// Wireframe overlay
+const wireframeGeo = new THREE.SphereGeometry(GLOBE_RADIUS + 0.01, 64, 32);
+const wireframeMat = new THREE.MeshBasicMaterial({
+  color: 0x003344,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.08,
+});
+const wireframeMesh = new THREE.Mesh(wireframeGeo, wireframeMat);
+globeGroup.add(wireframeMesh);
+
+// ─── ATMOSPHERE ───────────────────────────────────────────
+const atmosGeo = new THREE.SphereGeometry(GLOBE_RADIUS + 0.25, 64, 32);
+const atmosMat = new THREE.ShaderMaterial({
+  vertexShader: `
+    varying vec3 vNormal;
+    varying vec3 vPosition;
+    void main() {
+      vec4 worldPos = modelMatrix * vec4(position, 1.0);
+      vPosition = worldPos.xyz;
+      vNormal = normalize(mat3(modelMatrix) * normal);
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vNormal;
+    varying vec3 vPosition;
+    uniform vec3 viewDirection;
+    void main() {
+      vec3 viewDir = normalize(cameraPosition - vPosition);
+      float fresnel = 1.0 - abs(dot(vNormal, viewDir));
+      fresnel = pow(fresnel, 3.0);
+      float alpha = fresnel * 0.35;
+      gl_FragColor = vec4(0.0, 0.85, 1.0, alpha);
+    }
+  `,
+  transparent: true,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+});
+const atmosMesh = new THREE.Mesh(atmosGeo, atmosMat);
+scene.add(atmosMesh);
+
+// ─── ORBITING RINGS ───────────────────────────────────────
+function createRing(radius, tiltX, tiltZ, color, opacity) {
+  const ringGeo = new THREE.TorusGeometry(radius, 0.015, 16, 180);
+  const ringMat = new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 0.8,
+    roughness: 0.4, metalness: 0.6, transparent: true, opacity,
+  });
+  const ring = new THREE.Mesh(ringGeo, ringMat);
+  ring.rotation.x = tiltX;
+  ring.rotation.z = tiltZ;
+  return ring;
+}
+
+const rings = [
+  createRing(GLOBE_RADIUS + 0.45, Math.PI / 2.7, 0.15, 0x00ccff, 0.5),
+  createRing(GLOBE_RADIUS + 0.70, Math.PI / 1.8, -0.3, 0xff00ff, 0.3),
+  createRing(GLOBE_RADIUS + 0.55, Math.PI / 6, 0.5, 0x0088ff, 0.35),
+];
+rings.forEach(r => scene.add(r));
+
+// ─── STARFIELD ────────────────────────────────────────────
+const starsGeo = new THREE.BufferGeometry();
+const starsCount = 1500;
+const starsPositions = new Float32Array(starsCount * 3);
+for (let i = 0; i < starsCount * 3; i += 3) {
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  const r = 35 + Math.random() * 25;
+  starsPositions[i] = r * Math.sin(phi) * Math.cos(theta);
+  starsPositions[i + 1] = r * Math.sin(phi) * Math.sin(theta);
+  starsPositions[i + 2] = r * Math.cos(phi);
+}
+starsGeo.setAttribute('position', new THREE.BufferAttribute(starsPositions, 3));
+const starsMat = new THREE.PointsMaterial({
+  color: 0xffffff, size: 0.06,
+  transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+});
+const stars = new THREE.Points(starsGeo, starsMat);
+scene.add(stars);
+
+// ─── CITY MARKERS ─────────────────────────────────────────
+const markersGroup = new THREE.Group();
+globeGroup.add(markersGroup);
+
+const markerGeo = new THREE.SphereGeometry(0.07, 16, 16);
+const markerHighlightGeo = new THREE.SphereGeometry(0.14, 16, 16);
+const markerMat = new THREE.MeshStandardMaterial({
+  color: 0x00ffff, emissive: 0x00ffff, emissiveIntensity: 2.5,
+  roughness: 0.2, metalness: 0.3,
+});
+const markerHighlightMat = new THREE.MeshBasicMaterial({
+  color: 0x00ccff, transparent: true, opacity: 0.25,
+  blending: THREE.AdditiveBlending, depthWrite: false,
+});
+
+const markerMeshes = [];
+const markerBeams = [];
+
+cities.forEach(city => {
+  const pos = latLngToVec3(city.lat, city.lng, GLOBE_RADIUS + 0.06);
+  const marker = new THREE.Mesh(markerGeo, markerMat);
+  marker.position.copy(pos);
+  marker.userData = city;
+  markersGroup.add(marker);
+  markerMeshes.push(marker);
+
+  // Glow halo
+  const halo = new THREE.Mesh(markerHighlightGeo, markerHighlightMat);
+  halo.position.copy(pos);
+  markersGroup.add(halo);
+  marker.userData.halo = halo;
+
+  // Beam
+  const dir = pos.clone().normalize();
+  const beamLen = 0.3 + Math.random() * 0.4;
+  const beamEnd = pos.clone().add(dir.clone().multiplyScalar(beamLen));
+  const beamGeo = new THREE.BufferGeometry().setFromPoints([pos, beamEnd]);
+  const beamMat = new THREE.LineBasicMaterial({
+    color: 0x00ccff, transparent: true, opacity: 0.35,
+    blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+  const beam = new THREE.Line(beamGeo, beamMat);
+  markersGroup.add(beam);
+  markerBeams.push({ beam, basePos: pos.clone(), dir: dir.clone(), len: beamLen, phase: Math.random() * Math.PI * 2 });
+});
+
+// ─── RAYCASTER ────────────────────────────────────────────
+const raycaster = new THREE.Raycaster();
+raycaster.params.Points.threshold = 0.2;
+raycaster.params.Line = { threshold: 0.1 };
+
+const mouse = new THREE.Vector2();
+let mouseDownPos = new THREE.Vector2();
+let mouseUpPos = new THREE.Vector2();
+let isDragging = false;
+
+function getIntersections(event) {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  return raycaster.intersectObjects([globeMesh, ...markerMeshes], false);
+}
+
+function pointToLatLng(point) {
+  const n = point.clone().normalize();
+  const lat = THREE.MathUtils.radToDeg(Math.asin(n.y));
+  const lng = THREE.MathUtils.radToDeg(Math.atan2(-n.z, n.x));
+  return { lat, lng };
+}
+
+function findNearestCity(point) {
+  const { lat, lng } = pointToLatLng(point);
+  let best = null, bestDist = Infinity;
+  cities.forEach(city => {
+    const dLat = city.lat - lat;
+    const dLng = city.lng - lng;
+    const dist = Math.sqrt(dLat * dLat + dLng * dLng);
+    if (dist < bestDist) { bestDist = dist; best = city; }
+  });
+  return { city: best, dist: bestDist };
+}
+
+// ─── UI FUNCTIONS ─────────────────────────────────────────
+function showCityInfo(city) {
+  document.getElementById('panel-city').textContent = city.name.toUpperCase();
+  document.getElementById('panel-country').textContent = city.country;
+  document.getElementById('panel-pop').textContent = city.pop;
+  document.getElementById('panel-coords').textContent = `${city.lat.toFixed(2)}°, ${city.lng.toFixed(2)}°`;
+  document.getElementById('panel-tz').textContent = city.tz;
+  document.getElementById('panel-desc').textContent = city.desc;
+  document.getElementById('info-panel').classList.add('active');
+}
+
+function hideCityInfo() {
+  document.getElementById('info-panel').classList.remove('active');
+}
+
+// ─── EVENT HANDLERS ───────────────────────────────────────
+window.addEventListener('pointerdown', (e) => {
+  mouseDownPos.set(e.clientX, e.clientY);
+  isDragging = false;
+});
+
+window.addEventListener('pointermove', (e) => {
+  if (Math.abs(e.clientX - mouseDownPos.x) > 3 || Math.abs(e.clientY - mouseDownPos.y) > 3) {
+    isDragging = true;
+  }
+  // Update cursor coords
+  const intersects = getIntersections(e);
+  if (intersects.length > 0) {
+    const { lat, lng } = pointToLatLng(intersects[0].point);
+    const latStr = lat >= 0 ? `北纬 ${lat.toFixed(2)}°` : `南纬 ${Math.abs(lat).toFixed(2)}°`;
+    const lngStr = lng >= 0 ? `东经 ${lng.toFixed(2)}°` : `西经 ${Math.abs(lng).toFixed(2)}°`;
+    document.getElementById('cursor-coords').textContent = `${latStr} / ${lngStr}`;
+  }
+});
+
+window.addEventListener('pointerup', (e) => {
+  mouseUpPos.set(e.clientX, e.clientY);
+  if (isDragging) return;
+
+  const intersects = getIntersections(e);
+  if (intersects.length === 0) { hideCityInfo(); return; }
+
+  const first = intersects[0];
+  // Check if clicked a marker
+  if (first.object.userData && first.object.userData.name) {
+    showCityInfo(first.object.userData);
+  } else if (first.object === globeMesh) {
+    const { city, dist } = findNearestCity(first.point);
+    if (city && dist < 25) showCityInfo(city);
+    else hideCityInfo();
+  }
+});
+
+document.getElementById('panel-close').addEventListener('click', hideCityInfo);
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Keyboard shortcut to close panel
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') hideCityInfo();
+});
+
+// ─── NEWS SYSTEM ──────────────────────────────────────────
+const tickerTrack = document.getElementById('ticker-track');
+
+const fallbackNews = [
+  'NASA公布新一代量子通信卫星星座计划，预计2030年前完成部署',
+  '全球人工智能峰会在伦理部署框架方面达成里程碑式协议',
+  '聚变能源重大突破：持续等离子体反应超过48小时',
+  '主要科技公司承诺到2030年投入1000亿美元用于碳捕获基础设施',
+  '全新海底光缆系统将亚洲与南美洲之间的带宽提升三倍',
+  '革命性芯片设计在神经网络处理方面实现10倍能效提升',
+  '联合国报告强调发展中国家可再生能源快速普及的趋势',
+  'SpaceX成功测试用于火星任务的可重复使用轨道转移飞行器',
+  '全球网络安全联盟成立，应对日益增长的人工智能驱动的威胁',
+  '世界首个商用量子互联网节点在新加坡启用',
+  '自主航运船队完成首次跨太平洋零排放航行',
+  'mRNA技术突破为个性化癌症治疗带来新希望',
+];
+
+function buildTickerItems(news) {
+  const items = news.map(h => `<span class="ticker-item">${h}</span>`).join('<span class="ticker-sep">◆</span>');
+  // Duplicate for seamless loop
+  return items + '<span class="ticker-sep">◆</span>' + items;
+}
+
+tickerTrack.innerHTML = buildTickerItems(fallbackNews);
+
+// Try to fetch live news
+async function fetchNews() {
+  const sources = [
+    'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Fwww.zhihu.com%2Frss',
+    'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Ffeedx.net%2Frss%2Fweibo.xml',
+    'https://api.rss2json.com/v1/api.json?rss_url=https%3A%2F%2Ffeeds.bbci.co.uk%2Fzhongwen%2Fsimp%2Frss.xml',
+  ];
+  for (const url of sources) {
+    try {
+      const resp = await fetch(url);
+      const data = await resp.json();
+      if (data.items && data.items.length > 0) {
+        const headlines = data.items.slice(0, 12).map(i => i.title);
+        tickerTrack.style.animation = 'none';
+        tickerTrack.innerHTML = buildTickerItems(headlines);
+        // Force reflow then restart animation
+        void tickerTrack.offsetWidth;
+        tickerTrack.style.animation = 'ticker-scroll 60s linear infinite';
+        return;
+      }
+    } catch (e) { /* fall through */ }
+  }
+}
+fetchNews();
+// Refresh news every 10 minutes
+setInterval(fetchNews, 600000);
+
+// ─── CLOCK ────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleString('zh-CN', { hour12: false, timeZone: 'Asia/Shanghai' });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ─── ANIMATION LOOP ───────────────────────────────────────
+const clock = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const t = performance.now() * 0.001;
+
+  controls.update();
+
+  // Pulse markers
+  const pulse = 1 + Math.sin(t * 3) * 0.25;
+  markerMeshes.forEach((m, i) => {
+    const s = 1 + Math.sin(t * 3 + i * 0.7) * 0.3;
+    m.scale.setScalar(s);
+    if (m.userData.halo) m.userData.halo.scale.setScalar(s * 1.3);
+  });
+
+  // Animate beams
+  markerBeams.forEach(({ beam, basePos, dir, len, phase }) => {
+    const wobble = Math.sin(t * 2 + phase) * 0.3 + 0.7;
+    const end = basePos.clone().add(dir.clone().multiplyScalar(len * wobble));
+    const positions = beam.geometry.attributes.position;
+    positions.setXYZ(1, end.x, end.y, end.z);
+    positions.needsUpdate = true;
+  });
+
+  // Rotate rings slowly opposite to globe for visual interest
+  rings[0].rotation.z += dt * 0.06;
+  rings[1].rotation.z -= dt * 0.04;
+  rings[2].rotation.x += dt * 0.05;
+
+  // Slowly rotate starfield
+  stars.rotation.y += dt * 0.015;
+
+  renderer.render(scene, camera);
+}
+
+// ─── INIT ─────────────────────────────────────────────────
+document.getElementById('loading').classList.add('hidden');
+animate();
+
+console.log('%c🌍 全球监控 V3.0 // 就绪 %c| %c点击地球探索城市 %c| %c新闻推送已激活',
+  'color:#00f0ff;font-size:16px;', '', 'color:#fff;', '', 'color:#00ff44;');
+</script>
+</body>
+</html>

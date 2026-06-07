@@ -1,0 +1,48 @@
+<view class="page">
+  <!-- Preview -->
+  <view class="preview-section">
+    <image src="{{resultPath}}" mode="aspectFit" class="preview-img" />
+    <view class="watermark" wx:if="{{!unlocked}}">
+      <text>预览水印</text>
+    </view>
+  </view>
+
+  <!-- Specs info -->
+  <view class="info-card">
+    <view class="info-row">
+      <text class="info-label">尺寸规格</text>
+      <text class="info-value">{{specName}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">背景颜色</text>
+      <text class="info-value">{{colorName}}</text>
+    </view>
+    <view class="info-row">
+      <text class="info-label">分辨率</text>
+      <text class="info-value">300 DPI · 高清输出</text>
+    </view>
+  </view>
+
+  <!-- Ad unlock -->
+  <view class="ad-card" wx:if="{{!unlocked}}">
+    <view class="ad-badge">免费</view>
+    <text class="ad-title">观看广告解锁高清下载</text>
+    <view class="ad-features">
+      <text>· 观看 15-30 秒短视频广告</text>
+      <text>· 解锁本张照片的高清原图</text>
+      <text>· 无水印 · 300 DPI 印刷级</text>
+    </view>
+    <button class="btn-ad" bindtap="onWatchAd">
+      <text class="play-icon">▶</text>
+      观看广告 · 免费下载
+    </button>
+    <text class="skip-ad" bindtap="onSkipPay">不想看广告？付费 ¥1.99 直接下载</text>
+  </view>
+
+  <!-- Download (after ad) -->
+  <view class="download-section" wx:if="{{unlocked}}">
+    <view class="unlock-badge">已解锁</view>
+    <button class="btn-primary" bindtap="onDownload">下载高清原图</button>
+    <button class="btn-outline" style="margin-top:20rpx" bindtap="onStartOver">重新制作</button>
+  </view>
+</view>

@@ -1,0 +1,56 @@
+<view class="page">
+  <!-- Preview -->
+  <view class="preview-area">
+    <!-- Loading state -->
+    <view class="loading-box" wx:if="{{loading}}">
+      <view class="spinner"></view>
+      <text class="loading-text">{{processingText}}</text>
+    </view>
+
+    <!-- Result -->
+    <image wx:else src="{{resultPath}}" mode="aspectFit" class="preview-img" />
+  </view>
+
+  <!-- Controls -->
+  <view class="controls">
+    <!-- Sizes -->
+    <view class="control-row">
+      <text class="control-label">尺寸</text>
+      <scroll-view scroll-x class="chip-scroll">
+        <view
+          class="chip {{spec === item.id ? 'active' : ''}}"
+          wx:for="{{specs}}"
+          wx:key="id"
+          data-id="{{item.id}}"
+          bindtap="onSpecChange"
+        >{{item.name}}</view>
+      </scroll-view>
+    </view>
+
+    <!-- Colors -->
+    <view class="control-row">
+      <text class="control-label">背景</text>
+      <scroll-view scroll-x class="chip-scroll">
+        <view
+          class="color-chip {{color === item.value ? 'active' : ''}}"
+          wx:for="{{colors}}"
+          wx:key="value"
+          data-color="{{item.value}}"
+          bindtap="onColorChange"
+        >
+          <view class="mini-swatch" style="background:{{item.value}}"></view>
+          <text>{{item.name}}</text>
+        </view>
+      </scroll-view>
+    </view>
+  </view>
+
+  <!-- Hidden canvas for local processing -->
+  <canvas canvas-id="editCanvas" class="hidden-canvas"></canvas>
+
+  <!-- Actions -->
+  <view class="footer-bar">
+    <button class="btn-outline" bindtap="onSave">保存试看</button>
+    <button class="btn-primary" bindtap="onGoDownload">看广告免费下载</button>
+  </view>
+</view>
