@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>高考模拟器 ✨</title>
+<style>
+:root {
+  --pink: #FF6B9D;
+  --purple: #7C5CFC;
+  --blue: #5B9EFF;
+  --yellow: #FFC048;
+  --green: #4ADE80;
+  --red: #FF6B6B;
+  --bg: #FFF5FB;
+  --card: #FFFFFF;
+  --text: #3D2C4A;
+  --text-light: #988EA8;
+  --shadow-sm: 0 2px 12px rgba(124,92,252,0.08);
+  --shadow: 0 6px 28px rgba(124,92,252,0.12);
+  --shadow-lg: 0 12px 40px rgba(124,92,252,0.18);
+  --radius: 28px;
+  --radius-sm: 18px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; overflow:hidden; }
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', system-ui, sans-serif;
+  background: #FFF5FB;
+  background-image:
+    radial-gradient(circle at 15% 20%, rgba(124,92,252,0.06) 0%, transparent 50%),
+    radial-gradient(circle at 85% 80%, rgba(255,107,157,0.06) 0%, transparent 50%),
+    radial-gradient(circle at 50% 50%, rgba(91,158,255,0.04) 0%, transparent 50%);
+  display:flex; align-items:center; justify-content:center;
+  color: var(--text);
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Floating decorations ── */
+body::before, body::after {
+  position: fixed; pointer-events: none; z-index: 0;
+  font-size: 32px; opacity: 0.35;
+  animation: floatAround 12s ease-in-out infinite;
+}
+body::before { content: '⭐'; top: 8%; left: 8%; animation-delay: 0s; }
+body::after { content: '🌸'; bottom: 10%; right: 8%; animation-delay: -6s; }
+@keyframes floatAround {
+  0%,100% { transform: translate(0,0) rotate(0deg); }
+  25% { transform: translate(15px,-20px) rotate(8deg); }
+  50% { transform: translate(-8px,-8px) rotate(-5deg); }
+  75% { transform: translate(-15px,12px) rotate(3deg); }
+}
+
+#app {
+  width: 100%; max-width: 440px; height: 100vh; max-height: 860px;
+  position: relative; z-index: 1;
+  overflow: hidden;
+  background: rgba(255,255,255,0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-radius: 36px;
+  box-shadow: 0 24px 72px rgba(124,92,252,0.12), 0 0 0 1.5px rgba(255,255,255,0.9), inset 0 0 80px rgba(124,92,252,0.03);
+}
+
+.screen {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 36px 24px;
+  opacity: 0; transform: translateY(16px) scale(0.98);
+  pointer-events: none;
+  transition: opacity 0.45s cubic-bezier(0.34,1.56,0.64,1), transform 0.45s cubic-bezier(0.34,1.56,0.64,1);
+}
+.screen.active {
+  opacity: 1; transform: translateY(0) scale(1);
+  pointer-events: all;
+}
+
+/* ── Character ── */
+.char-scene {
+  position: relative;
+  display: flex; flex-direction: column;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.char-emoji {
+  font-size: 72px;
+  line-height: 1;
+  animation: float 3.5s ease-in-out infinite;
+  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.08));
+  transition: all 0.3s ease;
+}
+.char-emoji.shake { animation: shake 0.5s ease; }
+.grad-cap {
+  font-size: 36px;
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  animation: float 3.5s ease-in-out infinite;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,0.1));
+  z-index: 5;
+}
+
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  30% { transform: translateY(-10px); }
+  60% { transform: translateY(-3px); }
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20% { transform: translateX(-10px); }
+  40% { transform: translateX(10px); }
+  60% { transform: translateX(-7px); }
+  80% { transform: translateX(7px); }
+}
+
+/* ── Typography ── */
+h1 { font-size: 26px; font-weight: 800; text-align: center; margin-bottom: 6px; letter-spacing: -0.3px; }
+h2 { font-size: 20px; font-weight: 750; text-align: center; margin-bottom: 4px; letter-spacing: -0.2px; }
+.subtitle { color: var(--text-light); font-size: 13px; text-align: center; margin-bottom: 18px; line-height: 1.5; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 15px 40px;
+  border: none; border-radius: 50px;
+  font-size: 17px; font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  color: white;
+  position: relative;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.10);
+  letter-spacing: 0.3px;
+}
+.btn:active { transform: scale(0.93); }
+.btn-primary {
+  background: linear-gradient(135deg, #FF6B9D 0%, #7C5CFC 100%);
+  box-shadow: 0 6px 24px rgba(124,92,252,0.35);
+}
+.btn-primary:hover { box-shadow: 0 10px 32px rgba(124,92,252,0.45); transform: translateY(-3px); }
+.btn-secondary { background: linear-gradient(135deg, #5B9EFF, #7C5CFC); }
+.btn-success { background: linear-gradient(135deg, #4ADE80, #22D3BB); box-shadow: 0 6px 20px rgba(74,222,128,0.3); }
+.btn-success:hover { box-shadow: 0 10px 28px rgba(74,222,128,0.45); transform: translateY(-3px); }
+.btn-warning { background: linear-gradient(135deg, #FFC048, #FF8C42); color: #5C3300; }
+.btn-ghost {
+  background: white; color: var(--purple);
+  border: 2.5px solid #EDE4FF;
+  box-shadow: var(--shadow-sm);
+}
+.btn-ghost:hover { border-color: var(--purple); transform: translateY(-2px); box-shadow: var(--shadow); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; filter: grayscale(0.3); }
+
+/* ── Timer ── */
+.timer-wrap {
+  width: 100%; height: 10px;
+  background: #F3E8FF;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+}
+.timer-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #4ADE80 0%, #FFC048 50%, #FF6B6B 100%);
+  border-radius: 5px;
+  transition: width 1s linear;
+  width: 100%;
+}
+.timer-bar.urgent { animation: timerPulse 0.4s ease infinite; }
+@keyframes timerPulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ── Stats ── */
+.stats { display: flex; gap: 12px; margin-bottom: 16px; font-size: 12px; flex-wrap: wrap; justify-content: center; }
+.stat {
+  display: flex; align-items: center; gap: 5px;
+  background: white;
+  padding: 7px 15px;
+  border-radius: 24px;
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+  border: 1.5px solid #F5F0FF;
+}
+.stat .icon { font-size: 15px; }
+.stat .val { font-weight: 800; color: var(--purple); font-size: 14px; }
+
+/* ── Cards ── */
+.q-card {
+  width: 100%;
+  background: white;
+  border-radius: var(--radius);
+  padding: 26px 22px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  border: 1.5px solid #F8F4FF;
+}
+.q-num {
+  display: inline-block;
+  font-size: 11px; font-weight: 750; color: var(--purple);
+  text-transform: uppercase; letter-spacing: 2px;
+  background: #F5F0FF;
+  padding: 4px 14px;
+  border-radius: 20px;
+  margin-bottom: 12px;
+}
+.q-text { font-size: 17px; font-weight: 650; line-height: 1.7; margin-bottom: 18px; }
+
+/* ── Options ── */
+.options { display: flex; flex-direction: column; gap: 9px; width: 100%; }
+.opt {
+  width: 100%; padding: 15px 18px;
+  background: #FBF9FF;
+  border: 2.5px solid transparent;
+  border-radius: var(--radius-sm);
+  font-size: 15px; font-weight: 580;
+  cursor: pointer; text-align: left;
+  transition: all 0.25s cubic-bezier(0.34,1.56,0.64,1);
+  display: flex; align-items: center; gap: 13px;
+  box-shadow: var(--shadow-sm);
+}
+.opt:hover { background: #F3ECFF; border-color: var(--purple); transform: translateX(6px); box-shadow: var(--shadow); }
+.opt:active { transform: scale(0.97); }
+.opt .letter {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #EDE4FF, #F8F4FF);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px;
+  color: var(--purple);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(124,92,252,0.1);
+}
+.opt.correct { background: #ECFDF5; border-color: #4ADE80; }
+.opt.correct .letter { background: linear-gradient(135deg, #4ADE80, #22D3BB); color: white; }
+.opt.wrong { background: #FFF0F0; border-color: #FF6B6B; }
+.opt.wrong .letter { background: linear-gradient(135deg, #FF6B6B, #FF8787); color: white; }
+
+/* ── Strategy cards ── */
+.strat-cards { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-bottom: 16px; }
+.strat-card {
+  width: 100%; padding: 18px 20px;
+  background: white;
+  border: 2.5px solid #F3ECFF;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow: var(--shadow-sm);
+}
+.strat-card:hover { border-color: var(--purple); transform: translateY(-3px); box-shadow: var(--shadow); }
+.strat-card .strat-title { font-size: 16px; font-weight: 700; margin-bottom: 3px; }
+.strat-card .strat-desc { font-size: 13px; color: var(--text-light); }
+.strat-card .strat-effect { font-size: 11px; color: var(--purple); font-weight: 650; margin-top: 6px; background: #F8F4FF; display: inline-block; padding: 3px 10px; border-radius: 12px; }
+
+/* ── Results ── */
+.score-big {
+  font-size: 80px; font-weight: 900;
+  background: linear-gradient(135deg, #FF6B9D, #7C5CFC);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: scorePop 0.8s cubic-bezier(0.34,1.56,0.64,1);
+  filter: drop-shadow(0 4px 8px rgba(124,92,252,0.2));
+}
+@keyframes scorePop {
+  0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+  60% { transform: scale(1.15) rotate(2deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+.score-breakdown { width: 100%; display: flex; flex-direction: column; gap: 7px; margin: 16px 0; }
+.score-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 13px 18px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid #F8F4FF;
+  animation: slideIn 0.4s cubic-bezier(0.34,1.56,0.64,1) backwards;
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.score-row .subject { font-weight: 650; display: flex; align-items: center; gap: 8px; }
+.score-row .pts { font-weight: 800; font-size: 19px; color: var(--purple); }
+
+/* ── Major selection ── */
+.major-list { display: flex; flex-direction: column; gap: 8px; width: 100%; max-height: 300px; overflow-y: auto; margin-bottom: 14px; }
+.major-card {
+  width: 100%; padding: 15px 16px;
+  background: white;
+  border: 2.5px solid #F3ECFF;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  display: flex; align-items: center; gap: 14px;
+  font-weight: 620;
+  box-shadow: var(--shadow-sm);
+}
+.major-card:hover { border-color: var(--purple); transform: translateX(4px); }
+.major-card.selected {
+  border-color: var(--purple); background: #FBF7FF;
+  box-shadow: 0 0 0 4px rgba(124,92,252,0.08);
+}
+.major-card .rank {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--purple), #9B7CFC);
+  color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(124,92,252,0.25);
+}
+.major-card .rank.empty { background: #EDE4FF; color: #B8A0F0; box-shadow: none; }
+.major-card .info { flex:1; }
+.major-card .info .major-name { font-size: 15px; }
+.major-card .info .school-name { font-size: 12px; color: var(--text-light); margin-top: 1px; }
+
+/* ── Admission ── */
+.admission-steps { width: 100%; margin: 16px 0; }
+.admission-step {
+  padding: 15px 18px;
+  background: white;
+  border-radius: 16px;
+  margin-bottom: 7px;
+  display: flex; align-items: center; gap: 13px;
+  font-weight: 620;
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid #F8F4FF;
+  opacity: 0;
+  animation: stepIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+.admission-step:nth-child(1) { animation-delay: 0.3s; }
+.admission-step:nth-child(2) { animation-delay: 1s; }
+.admission-step:nth-child(3) { animation-delay: 1.7s; }
+.admission-step:nth-child(4) { animation-delay: 2.4s; }
+.admission-step:nth-child(5) { animation-delay: 3.1s; }
+.admission-step:nth-child(6) { animation-delay: 3.8s; }
+.admission-step:nth-child(7) { animation-delay: 4.5s; }
+.admission-step:nth-child(8) { animation-delay: 5.2s; }
+@keyframes stepIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.admission-step .step-icon { font-size: 26px; flex-shrink: 0; }
+
+/* ── Misc ── */
+.emoji-big { font-size: 72px; margin-bottom: 8px; animation: float 3s ease-in-out infinite; }
+.fatigue-bar {
+  width: 100%; height: 7px;
+  background: #F3E8FF;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 4px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
+}
+.fatigue-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ADE80 0%, #FFC048 50%, #FF6B6B 100%);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+
+/* ── Confetti ── */
+.confetti-container { position: fixed; inset: 0; pointer-events: none; z-index: 200; }
+.confetti-piece {
+  position: absolute;
+  border-radius: 4px;
+  animation: confettiFall linear forwards;
+}
+@keyframes confettiFall {
+  0% { transform: translateY(-100vh) rotate(0deg) scale(1); opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translateY(100vh) rotate(900deg) scale(0.3); opacity: 0; }
+}
+
+/* ── Responsive ── */
+@media (max-width: 500px) {
+  #app { border-radius: 0; max-height: 100vh; }
+  .screen { padding: 28px 18px; }
+  h1 { font-size: 23px; }
+  h2 { font-size: 18px; }
+  .q-text { font-size: 16px; }
+  .score-big { font-size: 62px; }
+  .opt { padding: 13px 16px; font-size: 14px; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Intro Screen -->
+  <div class="screen active" id="screen-intro">
+    <div class="char-scene">
+      <div class="char-emoji" id="char-intro">😊</div>
+    </div>
+    <h1>🎓 高考模拟器</h1>
+    <p class="subtitle">回到那个夏天，再次迎接人生大考</p>
+    <div style="display:flex;gap:8px;margin-bottom:24px;">
+      <span style="background:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">📝 语文</span>
+      <span style="background:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">🔢 数学</span>
+      <span style="background:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">🌍 英语</span>
+      <span style="background:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">🔬 理综</span>
+    </div>
+    <button class="btn btn-primary" onclick="startGame()">
+      开始高考 ⚡
+    </button>
+    <p style="font-size:11px;color:var(--text-light);margin-top:12px;">提示：每科之间可以选择复习策略哦~</p>
+  </div>
+
+  <!-- Strategy Screen -->
+  <div class="screen" id="screen-strategy">
+    <div class="char-scene">
+      <div class="char-emoji" id="char-strat">😊</div>
+    </div>
+    <h2 id="strat-title">📝 语文考试前</h2>
+    <p class="subtitle" id="strat-sub">你感觉状态如何？</p>
+    <div class="stats">
+      <div class="stat"><span class="icon">⚡</span> 精力 <span class="val" id="strat-energy">100</span></div>
+      <div class="stat"><span class="icon">😰</span> 疲劳 <span class="val" id="strat-fatigue">0</span></div>
+      <div class="stat"><span class="icon">📊</span> 总分 <span class="val" id="strat-score">0</span></div>
+    </div>
+    <div class="fatigue-bar" style="margin-bottom:16px;">
+      <div class="fatigue-fill" id="fatigue-fill" style="width:0%"></div>
+    </div>
+    <div class="strat-cards">
+      <div class="strat-card" onclick="chooseStrategy('cram')">
+        <div class="strat-title">📚 突击复习</div>
+        <div class="strat-desc">熬夜刷题，拼一把！</div>
+        <div class="strat-effect">✨ 得分+10 &nbsp;|&nbsp; 😰 疲劳+25</div>
+      </div>
+      <div class="strat-card" onclick="chooseStrategy('normal')">
+        <div class="strat-title">🧘 正常发挥</div>
+        <div class="strat-desc">保持平常心，稳扎稳打</div>
+        <div class="strat-effect">📊 不变 &nbsp;|&nbsp; 😰 疲劳+10</div>
+      </div>
+      <div class="strat-card" onclick="chooseStrategy('rest')">
+        <div class="strat-title">😴 休息一下</div>
+        <div class="strat-desc">养精蓄锐，后面发力</div>
+        <div class="strat-effect">📉 得分-5 &nbsp;|&nbsp; 💚 疲劳-20</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Exam Screen -->
+  <div class="screen" id="screen-exam">
+    <div class="timer-wrap">
+      <div class="timer-bar" id="timer-bar"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;width:100%;margin-bottom:8px;font-size:14px;">
+      <span style="font-weight:700;color:var(--purple);" id="exam-subject">📝 语文</span>
+      <span style="font-weight:700;" id="exam-progress">1/5</span>
+    </div>
+    <div class="char-scene">
+      <div class="char-emoji" id="char-exam">😊</div>
+    </div>
+    <div class="q-card">
+      <div class="q-num" id="q-num">第 1 题</div>
+      <div class="q-text" id="q-text">题目加载中...</div>
+      <div class="options" id="options"></div>
+    </div>
+  </div>
+
+  <!-- Break Screen -->
+  <div class="screen" id="screen-break">
+    <div class="char-scene">
+      <div class="char-emoji" id="char-break">😊</div>
+    </div>
+    <h2 id="break-title">考试结束！</h2>
+    <p class="subtitle" id="break-msg"></p>
+    <div id="break-score" style="font-size:36px;font-weight:900;color:var(--purple);margin-bottom:16px;"></div>
+    <button class="btn btn-primary" onclick="nextSubject()">下一科 ➡️</button>
+  </div>
+
+  <!-- Results Screen -->
+  <div class="screen" id="screen-results">
+    <div class="char-scene">
+      <div class="char-emoji" id="char-results">😊</div>
+    </div>
+    <h2>🎉 高考成绩公布！</h2>
+    <div class="score-big" id="total-score">0</div>
+    <p style="font-size:13px;color:var(--text-light);">满分 750 分（已按高考标准折算）</p>
+    <div class="score-breakdown" id="score-breakdown"></div>
+    <button class="btn btn-primary" onclick="startVolunteer()" style="margin-top:8px;">
+      开始填报志愿 📋
+    </button>
+    <button class="btn btn-ghost" onclick="retakeExam()" style="margin-top:10px;">
+      分数不满意，我要复读 🔄
+    </button>
+  </div>
+
+  <!-- Volunteer Screen -->
+  <div class="screen" id="screen-volunteer">
+    <h2>📋 志愿填报</h2>
+    <p class="subtitle">点击选择你的意向专业（选3个，按点击顺序排序）</p>
+    <div class="major-list" id="major-list"></div>
+    <p style="font-size:12px;color:var(--text-light);margin-bottom:12px;" id="selected-count">已选 0/3</p>
+    <button class="btn btn-success" id="btn-submit" onclick="submitVolunteer()" disabled>
+      提交志愿 ✅
+    </button>
+  </div>
+
+  <!-- Admission Screen -->
+  <div class="screen" id="screen-admission">
+    <h2>📬 录取结果</h2>
+    <p class="subtitle">正在模拟投档...</p>
+    <div class="admission-steps" id="admission-steps"></div>
+    <button class="btn btn-primary" id="btn-ending" onclick="showEnding()" style="display:none;margin-top:16px;">
+      查看录取通知书 📨
+    </button>
+  </div>
+
+  <!-- Ending / Twist Screen -->
+  <div class="screen" id="screen-ending">
+    <div class="char-scene">
+      <div class="grad-cap">🎓</div>
+      <div class="char-emoji" id="char-ending">😊</div>
+    </div>
+    <h1 style="font-size:24px;" id="ending-title">恭喜你被录取！</h1>
+    <div style="background:white;border-radius:24px;padding:24px;text-align:center;box-shadow:var(--shadow);margin:16px 0;width:100%;" id="ending-card">
+      <p style="font-size:14px;color:var(--text-light);margin-bottom:4px;">河南工学院 · 电缆工程学院</p>
+      <p style="font-size:22px;font-weight:800;color:var(--purple);">电缆工程</p>
+      <p style="font-size:13px;color:var(--text-light);margin-top:4px;">Cable Engineering</p>
+      <div style="width:60px;height:4px;background:var(--purple);margin:12px auto;border-radius:2px;"></div>
+      <p style="font-size:13px;color:var(--text-light);">"连接世界，传输未来"</p>
+    </div>
+    <p style="font-size:13px;text-align:center;color:var(--text-light);max-width:300px;" id="ending-desc">
+      电缆是国民经济的"血管"和"神经"，从特高压输电线到海底光缆，从新能源汽车到5G基站 —— 每条电缆都在改变世界 ⚡
+    </p>
+    <button class="btn btn-ghost" onclick="showTwist()" style="margin-top:16px;" id="btn-twist">
+      然后呢...？🤔
+    </button>
+  </div>
+
+  <!-- Twist Screen -->
+  <div class="screen" id="screen-twist">
+    <div class="char-scene">
+      <div class="grad-cap" id="twist-cap" style="display:none">🎓</div>
+      <div class="char-emoji" id="char-twist">😊</div>
+    </div>
+    <h2 id="twist-line1"></h2>
+    <p style="font-size:14px;color:var(--text-light);text-align:center;max-width:300px;margin:12px 0;" id="twist-line2"></p>
+    <div style="background:white;border-radius:20px;padding:20px;text-align:center;box-shadow:var(--shadow);margin:16px 0;width:100%;" id="twist-message"></div>
+    <button class="btn btn-primary" onclick="restartGame()" style="margin-top:8px;">
+      再来亿次 🔄
+    </button>
+  </div>
+
+  <!-- Confetti Container -->
+  <div class="confetti-container" id="confetti"></div>
+</div>
+
+<script>
+// ─── Game State ───
+const SUBJECTS = [
+  { id: 'chinese', name: '语文', icon: '📝', emoji: '📖' },
+  { id: 'math', name: '数学', icon: '🔢', emoji: '🧮' },
+  { id: 'english', name: '英语', icon: '🌍', emoji: '🌐' },
+  { id: 'science', name: '理综', icon: '🔬', emoji: '⚗️' },
+];
+
+const QUESTIONS = {
+  chinese: [
+    { q: '考试前夜你在复习，突然饿了。此时应该？', opts: ['翻开课本啃知识点', '打开外卖app点烧烤', '喝西北风（既省钱又减肥）'], ans: 1 },
+    { q: '考试时发现旁边同学在偷瞄你的卷子，你会？', opts: ['默默挡住，守护劳动果实', '把卷子推过去："来来来一起看"', '用摩斯密码给他发错误答案'], ans: 0 },
+    { q: '考试最后5分钟作文才写了200字，怎么办？', opts: ['放弃治疗，在卷子上画表情包', '开启狂草模式，三行写完整篇文章', '写一句"懂的都懂"然后交卷'], ans: 1 },
+  ],
+  math: [
+    { q: '小明有5个苹果，吃了3个又买了8个又丢了2个。小明为什么要丢苹果？', opts: ['因为不好吃', '因为他手滑', '因为出题老师开心就好'], ans: 2 },
+    { q: '小明走60米/分走了10分钟，小红跑120米/分跑了5分钟。谁更累？', opts: ['小明，他走得更久', '小红，她在跑', '都累，不如打车'], ans: 2 },
+    { q: '遇到完全不会的数学题，最佳策略是？', opts: ['写个"解"字得1分同情分', '选C，传说中C选项最多', '画个坐标系当装饰'], ans: 1 },
+  ],
+  english: [
+    { q: '"How are you?" 的正确回答是？', opts: ['I\'m fine, thank you, and you?', 'Fine（冷漠.jpg）', '你管我好不好'], ans: 0 },
+    { q: '听力考试时耳机突然没声音了，你第一个念头是？', opts: ['完了完了完了', '观察周围同学的下笔时机，跟着蒙', '一定是耳机的问题，不是我的问题'], ans: 1 },
+    { q: '"abandon" 为什么让人刻骨铭心？', opts: ['它是四六级单词书的第一个词', '每次背单词都从它开始从它放弃', '读起来很有节奏感'], ans: 1 },
+  ],
+  science: [
+    { q: '为什么苹果往下掉而不是往天上飞？', opts: ['因为牛顿不答应', '万有引力（苹果想家了）', '苹果太重飞不起来'], ans: 1 },
+    { q: '化学课上老师说"这个反应很剧烈"，通常意味着？', opts: ['会冒很多泡泡', '会爆炸（快跑）', '老师自己也没做过这个实验'], ans: 1 },
+    { q: '做理综选择题最怕遇到什么？', opts: ['四个选项看起来都对', '每个字都认识连起来就看不懂', '生物化学物理三合一综合题'], ans: 0 },
+  ],
+};
+
+const MAJORS = [
+  { major: '电缆工程', school: '河南工学院', cutoff: 510, tag: '🔥 王牌专业' },
+  { major: '电气工程及其自动化', school: '河南工学院', cutoff: 520, tag: '⭐ 省级重点' },
+  { major: '机械设计制造及其自动化', school: '河南工学院', cutoff: 505, tag: '🛠️ 老牌工科' },
+  { major: '计算机科学与技术', school: '河南理工大学', cutoff: 560, tag: '💻 热门专业' },
+  { major: '土木工程', school: '郑州大学', cutoff: 580, tag: '🏗️ 211院校' },
+  { major: '材料科学与工程', school: '河南科技大学', cutoff: 530, tag: '🔬 科研强项' },
+];
+
+const state = {
+  subjectIdx: 0,
+  questionIdx: 0,
+  scores: {},
+  strategyBonuses: {},
+  fatigue: 0,
+  energy: 100,
+  timerInterval: null,
+  timeLeft: 0,
+  answered: false,
+  selectedMajors: [],
+};
+
+// ─── Navigation ───
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + id).classList.add('active');
+}
+
+// ─── Character Mood ───
+function setCharMood(screenId, mood) {
+  const screen = document.getElementById('screen-' + screenId);
+  if (!screen) return;
+  const char = screen.querySelector('.char-emoji');
+  if (!char) return;
+  const emojis = { happy: '😎', nervous: '😗', sad: '🥺', excited: '😄' };
+  char.textContent = emojis[mood] || '😊';
+}
+
+// ─── Game Start ───
+function startGame() {
+  state.subjectIdx = 0;
+  state.scores = {};
+  state.strategyBonuses = {};
+  state.fatigue = 0;
+  state.energy = 100;
+  state.selectedMajors = [];
+  showStrategyScreen();
+}
+
+// ─── Strategy ───
+function showStrategyScreen() {
+  if (state.subjectIdx >= SUBJECTS.length) {
+    showResults();
+    return;
+  }
+  const subj = SUBJECTS[state.subjectIdx];
+  document.getElementById('strat-title').textContent = subj.icon + ' ' + subj.name + '考试前';
+  document.getElementById('strat-sub').textContent = '第' + (state.subjectIdx + 1) + '科，还剩 ' + (SUBJECTS.length - state.subjectIdx) + ' 科';
+  document.getElementById('strat-energy').textContent = state.energy;
+  document.getElementById('strat-fatigue').textContent = state.fatigue;
+  document.getElementById('strat-score').textContent = getTotalRawScore();
+  document.getElementById('fatigue-fill').style.width = Math.min(100, state.fatigue) + '%';
+  setCharMood('strategy', state.fatigue > 60 ? 'sad' : state.fatigue > 30 ? 'nervous' : 'happy');
+  showScreen('strategy');
+}
+
+function chooseStrategy(type) {
+  const subjId = SUBJECTS[state.subjectIdx].id;
+  if (type === 'cram') {
+    state.strategyBonuses[subjId] = 10;
+    state.fatigue += 25;
+    state.energy -= 15;
+  } else if (type === 'rest') {
+    state.strategyBonuses[subjId] = -5;
+    state.fatigue = Math.max(0, state.fatigue - 20);
+    state.energy = Math.min(100, state.energy + 15);
+  } else {
+    state.strategyBonuses[subjId] = 0;
+    state.fatigue += 10;
+    state.energy -= 5;
+  }
+  state.energy = Math.max(0, Math.min(100, state.energy));
+  state.fatigue = Math.max(0, Math.min(100, state.fatigue));
+  startExam();
+}
+
+// ─── Exam ───
+function startExam() {
+  const subj = SUBJECTS[state.subjectIdx];
+  state.questionIdx = 0;
+  state.answered = false;
+  document.getElementById('exam-subject').textContent = subj.icon + ' ' + subj.name;
+  showScreen('exam');
+  setCharMood('exam', 'nervous');
+  loadQuestion();
+}
+
+function loadQuestion() {
+  const subj = SUBJECTS[state.subjectIdx];
+  const questions = QUESTIONS[subj.id];
+  const q = questions[state.questionIdx];
+  state.answered = false;
+  state.timeLeft = 30;
+
+  document.getElementById('exam-progress').textContent = (state.questionIdx + 1) + '/' + questions.length;
+  document.getElementById('q-num').textContent = '第 ' + (state.questionIdx + 1) + ' 题';
+  document.getElementById('q-text').innerHTML = q.q;
+
+  const optsContainer = document.getElementById('options');
+  const letters = ['A', 'B', 'C'];
+  optsContainer.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'opt';
+    btn.innerHTML = '<span class="letter">' + letters[i] + '</span>' + opt;
+    btn.onclick = () => answerQuestion(i);
+    optsContainer.appendChild(btn);
+  });
+
+  // Timer
+  clearInterval(state.timerInterval);
+  document.getElementById('timer-bar').style.width = '100%';
+  document.getElementById('timer-bar').classList.remove('urgent');
+  state.timerInterval = setInterval(() => {
+    state.timeLeft--;
+    const pct = (state.timeLeft / 30) * 100;
+    document.getElementById('timer-bar').style.width = pct + '%';
+    if (state.timeLeft <= 10) {
+      document.getElementById('timer-bar').classList.add('urgent');
+      setCharMood('exam', 'nervous');
+    }
+    if (state.timeLeft <= 0) {
+      clearInterval(state.timerInterval);
+      if (!state.answered) answerQuestion(-1);
+    }
+  }, 1000);
+}
+
+function answerQuestion(chosen) {
+  if (state.answered) return;
+  state.answered = true;
+  clearInterval(state.timerInterval);
+
+  const subj = SUBJECTS[state.subjectIdx];
+  const questions = QUESTIONS[subj.id];
+  const q = questions[state.questionIdx];
+  const correct = q.ans;
+  const isCorrect = chosen === correct;
+
+  // Show correct/wrong
+  const opts = document.querySelectorAll('#options .opt');
+  opts.forEach((opt, i) => {
+    opt.style.pointerEvents = 'none';
+    if (i === correct) opt.classList.add('correct');
+    else if (i === chosen && !isCorrect) opt.classList.add('wrong');
+  });
+
+  // Feedback
+  if (isCorrect) {
+    setCharMood('exam', 'happy');
+  } else if (chosen === -1) {
+    setCharMood('exam', 'sad');
+  } else {
+    setCharMood('exam', 'sad');
+    const emoji = document.querySelector('.char-emoji');
+    emoji?.classList.add('shake');
+    setTimeout(() => emoji?.classList.remove('shake'), 500);
+  }
+
+  // Score
+  if (!state.scores[subj.id]) state.scores[subj.id] = 0;
+  const basePoints = 20;
+  const timeBonus = Math.floor(state.timeLeft / 5);
+  let points = isCorrect ? basePoints + timeBonus : 0;
+  const fatiguePenalty = state.fatigue > 70 ? 0.85 : state.fatigue > 40 ? 0.92 : 1;
+  points = Math.round(points * fatiguePenalty);
+  state.scores[subj.id] += points;
+
+  // Next
+  setTimeout(() => {
+    state.questionIdx++;
+    if (state.questionIdx >= questions.length) {
+      finishSubject();
+    } else {
+      loadQuestion();
+    }
+  }, 1500);
+}
+
+function finishSubject() {
+  clearInterval(state.timerInterval);
+  const subj = SUBJECTS[state.subjectIdx];
+  const bonus = state.strategyBonuses[subj.id] || 0;
+  state.scores[subj.id] = Math.max(0, Math.min(120, state.scores[subj.id] + bonus));
+
+  const rawScore = state.scores[subj.id];
+  let msg = '';
+  let mood = 'happy';
+  if (rawScore >= 100) { msg = '太厉害了！你这是状元级别啊 🏆'; mood = 'excited'; }
+  else if (rawScore >= 80) { msg = '发挥不错，继续保持！💪'; mood = 'happy'; }
+  else if (rawScore >= 60) { msg = '还算稳，后面加油追回来！📈'; mood = 'happy'; }
+  else { msg = '这科有点拉胯...但还有机会！🍀'; mood = 'sad'; }
+
+  document.getElementById('break-title').textContent = subj.icon + ' ' + subj.name + ' 结束！';
+  document.getElementById('break-msg').textContent = msg;
+  document.getElementById('break-score').textContent = rawScore + ' 分';
+  setCharMood('break', mood);
+  showScreen('break');
+}
+
+function nextSubject() {
+  state.subjectIdx++;
+  showStrategyScreen();
+}
+
+function getTotalRawScore() {
+  return Object.values(state.scores).reduce((a, b) => a + b, 0);
+}
+
+// ─── Results ───
+function showResults() {
+  showScreen('results');
+  const rawTotal = getTotalRawScore();
+  const scaledTotal = Math.round(rawTotal * (750 / 480));
+  document.getElementById('total-score').textContent = scaledTotal;
+
+  const breakdown = document.getElementById('score-breakdown');
+  breakdown.innerHTML = '';
+  SUBJECTS.forEach((subj, i) => {
+    const raw = state.scores[subj.id] || 0;
+    const scaled = Math.round(raw * (750 / 480));
+    const row = document.createElement('div');
+    row.className = 'score-row';
+    row.style.animationDelay = (0.15 * i) + 's';
+    const bonus = state.strategyBonuses[subj.id] || 0;
+    const bonusStr = bonus > 0 ? ' <span style="font-size:11px;color:var(--green);">(+' + bonus + ')</span>' :
+                     bonus < 0 ? ' <span style="font-size:11px;color:var(--red);">(' + bonus + ')</span>' : '';
+    row.innerHTML = '<span class="subject">' + subj.icon + ' ' + subj.name + bonusStr + '</span>' +
+                    '<span class="pts">' + scaled + '</span>';
+    breakdown.appendChild(row);
+  });
+
+  const mood = scaledTotal >= 650 ? 'excited' : scaledTotal >= 500 ? 'happy' : scaledTotal >= 400 ? 'nervous' : 'sad';
+  setCharMood('results', mood);
+
+  // Store scaled total for admission
+  state.scaledTotal = scaledTotal;
+}
+
+// ─── Volunteer / Major Selection ───
+function startVolunteer() {
+  state.selectedMajors = [];
+  showScreen('volunteer');
+  renderMajorList();
+}
+
+function retakeExam() {
+  state.subjectIdx = 0;
+  state.questionIdx = 0;
+  state.scores = {};
+  state.strategyBonuses = {};
+  state.fatigue = 0;
+  state.energy = 100;
+  state.selectedMajors = [];
+  state.scaledTotal = 0;
+  showStrategyScreen();
+}
+
+function renderMajorList() {
+  const list = document.getElementById('major-list');
+  list.innerHTML = '';
+  MAJORS.forEach((m, i) => {
+    const card = document.createElement('div');
+    card.className = 'major-card';
+    const selIdx = state.selectedMajors.indexOf(i);
+    if (selIdx >= 0) card.classList.add('selected');
+    card.innerHTML = '<div class="rank ' + (selIdx >= 0 ? '' : 'empty') + '">' +
+                     (selIdx >= 0 ? (selIdx + 1) : '☆') + '</div>' +
+                     '<div class="info"><div class="major-name">' + m.major + ' ' + m.tag + '</div>' +
+                     '<div class="school-name">' + m.school + ' · 投档线 ≈' + m.cutoff + '分</div></div>';
+    card.onclick = () => toggleMajor(i);
+    list.appendChild(card);
+  });
+  document.getElementById('selected-count').textContent = '已选 ' + state.selectedMajors.length + '/3';
+  document.getElementById('btn-submit').disabled = state.selectedMajors.length !== 3;
+}
+
+function toggleMajor(idx) {
+  const pos = state.selectedMajors.indexOf(idx);
+  if (pos >= 0) {
+    state.selectedMajors.splice(pos, 1);
+  } else {
+    if (state.selectedMajors.length >= 3) {
+      state.selectedMajors.shift();
+    }
+    state.selectedMajors.push(idx);
+  }
+  renderMajorList();
+}
+
+function submitVolunteer() {
+  if (state.selectedMajors.length !== 3) return;
+  showScreen('admission');
+  document.getElementById('btn-ending').style.display = 'none';
+
+  const steps = document.getElementById('admission-steps');
+  steps.innerHTML = '';
+
+  // Always ensure 电缆工程 at 河南工学院 is the final result
+  // Process volunteer choices with drama
+  const chosenMajors = state.selectedMajors.map(i => MAJORS[i]);
+  const userScore = state.scaledTotal;
+
+  function addStep(icon, text, delay) {
+    setTimeout(() => {
+      const step = document.createElement('div');
+      step.className = 'admission-step';
+      step.innerHTML = '<span class="step-icon">' + icon + '</span><span>' + text + '</span>';
+      steps.appendChild(step);
+    }, delay);
+  }
+
+  addStep('📤', '正在提交志愿...', 300);
+  addStep('🔍', '系统检索投档线中...', 800);
+
+  // Show user's choices being processed
+  chosenMajors.forEach((m, i) => {
+    const delay = 1300 + i * 800;
+    if (m.major === '电缆工程' && m.school === '河南工学院') {
+      addStep('✅', '第' + (i + 1) + '志愿：' + m.school + ' — ' + m.major + ' — 已投档！', delay);
+    } else if (userScore >= m.cutoff) {
+      addStep('⚠️', '第' + (i + 1) + '志愿：' + m.school + ' — ' + m.major + ' — 达线但专业已满', delay);
+    } else {
+      addStep('❌', '第' + (i + 1) + '志愿：' + m.school + ' — ' + m.major + ' — 分数未达投档线 (差' + (m.cutoff - userScore) + '分)', delay);
+    }
+  });
+
+  // Final admission
+  setTimeout(() => {
+    const step = document.createElement('div');
+    step.className = 'admission-step';
+    step.innerHTML = '<span class="step-icon">🎉</span><span><strong>最终录取：河南工学院 · 电缆工程</strong></span>';
+    step.style.background = '#F5F0FF';
+    step.style.border = '2px solid var(--purple)';
+    steps.appendChild(step);
+    document.getElementById('btn-ending').style.display = 'inline-flex';
+  }, 1300 + chosenMajors.length * 800 + 500);
+}
+
+// ─── Ending ───
+function showEnding() {
+  showScreen('ending');
+  launchConfetti();
+  const btn = document.getElementById('btn-twist');
+  btn.style.display = 'none';
+  setTimeout(() => { btn.style.display = 'inline-flex'; }, 800);
+}
+
+function showTwist() {
+  showScreen('twist');
+  launchConfetti();
+  const el1 = document.getElementById('twist-line1');
+  const el2 = document.getElementById('twist-line2');
+  const msg = document.getElementById('twist-message');
+  el1.textContent = '';
+  el2.textContent = '';
+  msg.innerHTML = '';
+  setCharMood('twist', 'nervous');
+
+  const lines = [
+    '等等……',
+    '你清醒一点。',
+    '你已经大四了。',
+    '大四了还在这模拟高考？？',
+  ];
+
+  let i = 0;
+  function typeLine() {
+    if (i === 0) { el1.innerHTML = lines[0]; i++; setTimeout(typeLine, 900); return; }
+    if (i === 1) { el1.innerHTML = lines[0] + '<br>' + lines[1]; i++; setTimeout(typeLine, 700); return; }
+    if (i === 2) { el1.innerHTML = lines[0] + '<br>' + lines[1] + '<br>' + lines[2]; i++; setTimeout(typeLine, 600); return; }
+    if (i === 3) {
+      el1.innerHTML = lines[0] + '<br>' + lines[1] + '<br>' + lines[2];
+      el2.textContent = lines[3];
+      i++;
+      setTimeout(typeLine, 1200);
+      return;
+    }
+    setTimeout(() => {
+      msg.innerHTML = `
+        <p style="font-size:15px;font-weight:700;color:var(--purple);margin-bottom:12px;">说真的，什么专业都差不多。</p>
+        <p style="font-size:13px;color:var(--text-light);line-height:1.8;">
+          当年填志愿跟拆盲盒似的，<br>
+          学啥的都有混得好的和混得差的。<br><br>
+          电缆工程也好，其他专业也罢——<br>
+          反正毕业了都是从<br>
+          <em>"这学的啥啊"</em><br>
+          慢慢变成<br>
+          <em>"好像也还行？"</em><br><br>
+          <strong style="color:var(--purple);">人生这道选择题，选啥都会后悔，<br>但不选才最亏。</strong><br>
+          <span style="font-size:12px;color:var(--text-light);">（当然电缆工程确实不错，欢迎报考 😏）</span>
+        </p>
+      `;
+      setCharMood('twist', 'excited');
+      document.getElementById('twist-cap').style.display = 'block';
+    }, 400);
+  }
+  typeLine();
+}
+
+// ─── Confetti ───
+function launchConfetti() {
+  const container = document.getElementById('confetti');
+  const colors = ['#FF9ECD', '#A78BFA', '#60A5FA', '#34D399', '#FBBF24', '#F87171', '#FFB5C2', '#818CF8'];
+  for (let i = 0; i < 80; i++) {
+    setTimeout(() => {
+      const piece = document.createElement('div');
+      piece.className = 'confetti-piece';
+      piece.style.left = Math.random() * 100 + '%';
+      piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      piece.style.animationDuration = (2 + Math.random() * 3) + 's';
+      piece.style.animationDelay = '0s';
+      piece.style.width = (8 + Math.random() * 10) + 'px';
+      piece.style.height = (8 + Math.random() * 10) + 'px';
+      container.appendChild(piece);
+      setTimeout(() => piece.remove(), 4000);
+    }, i * 30);
+  }
+}
+
+// ─── Restart ───
+function restartGame() {
+  clearInterval(state.timerInterval);
+  state.subjectIdx = 0;
+  state.questionIdx = 0;
+  state.scores = {};
+  state.strategyBonuses = {};
+  state.fatigue = 0;
+  state.energy = 100;
+  state.selectedMajors = [];
+  state.scaledTotal = 0;
+  showScreen('intro');
+  document.getElementById('confetti').innerHTML = '';
+}
+</script>
+</body>
+</html>
